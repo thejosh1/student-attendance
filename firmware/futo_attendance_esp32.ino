@@ -684,12 +684,21 @@ void handleDownload()
 
 void handleClear()
 {
-  if (!hasSD) { server.send(500, "text/plain", "SD Card Missing"); return; }
-  SD.remove("/logs.csv");
-  File file = SD.open("/logs.csv", FILE_WRITE);
-  file.println("ID,Name,Timestamp,DeviceID,Status");
-  file.close();
-  server.send(200, "text/html", "Logs cleared. <a href='/'>Back</a>");
+  if (hasFinger) {
+    finger.emptyDatabase();
+    Serial.println("[FINGER] AS608 optical sensor database wiped clean!");
+  }
+  if (hasSD) {
+    SD.remove("/logs.csv");
+    SD.remove("/students.csv");
+    File file = SD.open("/logs.csv", FILE_WRITE);
+    file.println("ID,Name,Timestamp,DeviceID,Status");
+    file.close();
+    File f2 = SD.open("/students.csv", FILE_WRITE);
+    f2.close();
+  }
+  showMessage("Sensor Wiped", "Clean Slate");
+  server.send(200, "text/html", "<html><body style='font-family:Arial;padding:20px;'><h2>AS608 Fingerprint Sensor & Rosters Wiped!</h2><p>All template slots have been cleared. Ready for fresh real enrollment.</p><a href='/'>Back to Terminal</a></body></html>");
 }
 
 void handleEnroll()

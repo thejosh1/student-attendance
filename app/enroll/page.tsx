@@ -177,29 +177,6 @@ export default function EnrollPage() {
     }, 1500);
   };
 
-  // Software simulator (for testing if hardware is offline)
-  const simulateTestCapture = async () => {
-    setAuthMethod("optical");
-    setBioStep("place1");
-    await new Promise((r) => setTimeout(r, 900));
-
-    setBioStep("scan1");
-    await new Promise((r) => setTimeout(r, 1100));
-
-    setBioStep("remove");
-    await new Promise((r) => setTimeout(r, 900));
-
-    setBioStep("place2");
-    await new Promise((r) => setTimeout(r, 1000));
-
-    setBioStep("scan2");
-    await new Promise((r) => setTimeout(r, 1200));
-
-    setQualityScore(98);
-    setMinutiaeCount(74);
-    setBioStep("verified");
-  };
-
   // Run WebAuthn (Device Fingerprint Sensor / Touch ID / Windows Hello)
   const startWebAuthnCapture = async () => {
     setAuthMethod("webauthn");
@@ -242,11 +219,9 @@ export default function EnrollPage() {
       }
     } catch (err: any) {
       console.warn("WebAuthn notice:", err);
-      setWebAuthnStatus(`Hardware scanner used (fallback): ${err.message || "Completed via Optical Sensor"}`);
-      // Fallback seamlessly to optical template creation
-      setQualityScore(96);
-      setMinutiaeCount(72);
-      setBioStep("verified");
+      setWebAuthnStatus(`Biometric sensor cancelled or unavailable. Please use the physical ESP32 optical sensor.`);
+      setToast({ message: "Please use the physical ESP32 AS608 optical sensor to capture a real fingerprint.", type: "error" });
+      setTimeout(() => setToast(null), 4000);
     }
   };
 
@@ -899,16 +874,6 @@ export default function EnrollPage() {
                   </svg>
                 </a>
               </div>
-
-              {/* Fallback Simulator Button */}
-              <button
-                type="button"
-                onClick={simulateTestCapture}
-                disabled={isWaitingForHardware}
-                className="w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-2.5 text-[11px] font-semibold text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition disabled:opacity-50"
-              >
-                <span>Offline Fallback: Run Software Simulation (Use only if ESP32 unplugged)</span>
-              </button>
             </div>
 
             {/* Modal Actions */}
