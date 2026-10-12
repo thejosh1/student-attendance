@@ -10,6 +10,7 @@ import {
   getAllDevices,
   getAllSessions,
   getAllStudents,
+  isSessionExpired,
   records,
   store,
 } from "@/lib/store";
@@ -72,6 +73,20 @@ export class BiometricService {
     let targetSession = sessions.find(
       (sess) => sess.deviceId === deviceId && sess.isActive
     );
+
+    // Double-check if the active target session reached its scheduled endTime
+    if (targetSession && isSessionExpired(targetSession, now)) {
+      targetSession.isActive = false;
+      targetSession.endedAt = new Date(`${targetSession.date}T${targetSession.endTime}:00+01:00`).toISOString();
+      const db = await import("@/lib/store").then((m) => m.getDb());
+      if (db) {
+        db.collection("sessions").updateOne(
+          { id: targetSession.id },
+          { $set: { isActive: false, endedAt: targetSession.endedAt } }
+        ).catch((e) => console.warn("Auto-expire session error:", e));
+      }
+      targetSession = undefined;
+    }
 
     // Fallback ONLY for genuine offline sync queued while lecture was ongoing
     if (!targetSession && dto.isOfflineSync && dto.timestamp) {

@@ -253,6 +253,23 @@ export async function updateDeviceStatus(deviceId: string, isEnabled: boolean): 
   return dev || null;
 }
 
+export function isSessionExpired(session: ClassSession, referenceDate?: Date): boolean {
+  if (!session.endTime || !session.date) return false;
+
+  const ref = referenceDate || new Date();
+  const currentDate = ref.toLocaleDateString("en-CA", { timeZone: "Africa/Lagos" });
+  const currentTime = ref.toLocaleTimeString("en-GB", {
+    timeZone: "Africa/Lagos",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  if (session.date < currentDate) return true;
+  if (session.date === currentDate && currentTime >= session.endTime) return true;
+  return false;
+}
+
 export async function getAllSessions(): Promise<ClassSession[]> {
   const norm = (c?: string) => (c || "").trim().toUpperCase();
   const db = await getDb();
@@ -267,6 +284,32 @@ export async function getAllSessions(): Promise<ClassSession[]> {
     } catch (e) {
       console.warn("Mongo fetch sessions error:", e);
     }
+  }
+
+  // REQUIREMENT: Once the time set has reached, the class should automatically end
+  const dbUpdates: Promise<any>[] = [];
+  for (const s of list) {
+    if (s.isActive && isSessionExpired(s)) {
+      s.isActive = false;
+      if (!s.endedAt) {
+        try {
+          s.endedAt = new Date(`${s.date}T${s.endTime}:00+01:00`).toISOString();
+        } catch {
+          s.endedAt = new Date().toISOString();
+        }
+      }
+      if (db) {
+        dbUpdates.push(
+          db.collection("sessions").updateOne(
+            { id: s.id },
+            { $set: { isActive: false, endedAt: s.endedAt } }
+          )
+        );
+      }
+    }
+  }
+  if (dbUpdates.length > 0) {
+    Promise.all(dbUpdates).catch((err) => console.warn("Auto-expire session update error:", err));
   }
 
   // Deduplicate so there is ALWAYS strictly 1 class section per course code
@@ -462,6 +505,9 @@ export interface DeviceSessionStatus {
   displayLine2: string;
   endedAt: string | null;
   endedMinutesAgo: number | null;
+  startTime?: string;
+  endTime?: string;
+  sessionDate?: string;
 }
 
 export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSessionStatus> {
@@ -480,6 +526,9 @@ export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSe
       displayLine2: "Place Finger",
       endedAt: null,
       endedMinutesAgo: null,
+      startTime: activeSession.startTime,
+      endTime: activeSession.endTime,
+      sessionDate: activeSession.date,
     };
   }
 
@@ -504,6 +553,9 @@ export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSe
         displayLine2: "Class Has Ended",
         endedAt: mostRecent.endedAt || null,
         endedMinutesAgo: minutesAgo,
+        startTime: mostRecent.startTime,
+        endTime: mostRecent.endTime,
+        sessionDate: mostRecent.date,
       };
     }
   }
@@ -522,6 +574,9 @@ export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSe
       endedSessions.length > 0
         ? Math.floor((Date.now() - new Date(endedSessions[0].endedAt!).getTime()) / 60000)
         : null,
+    startTime: endedSessions[0]?.startTime,
+    endTime: endedSessions[0]?.endTime,
+    sessionDate: endedSessions[0]?.date,
   };
 }
 

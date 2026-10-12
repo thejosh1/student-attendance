@@ -94,6 +94,7 @@ String currentSessionStatus = "idle";
 String currentSessionCourse = "";
 String currentDisplayLine1  = "Scan Fingerprint";
 String currentDisplayLine2  = "";
+String currentSessionEndTime = "";
 unsigned long lastSessionCheck = 0;
 
 /* FORWARD DECLARATIONS */
@@ -414,6 +415,20 @@ void checkCloudSessionStatus()
       String newCourse = parseJsonString(payload, "courseCode");
       String newLine1  = parseJsonString(payload, "displayLine1");
       String newLine2  = parseJsonString(payload, "displayLine2");
+      String newEndTime = parseJsonString(payload, "endTime");
+      currentSessionEndTime = newEndTime;
+
+      // Local RTC check: auto-end if scheduled end time has arrived
+      if (hasRTC && newStatus == "active" && currentSessionEndTime.length() >= 5) {
+        DateTime now = rtc.now();
+        int endHour = currentSessionEndTime.substring(0, 2).toInt();
+        int endMinute = currentSessionEndTime.substring(3, 5).toInt();
+        if (now.hour() * 60 + now.minute() >= endHour * 60 + endMinute) {
+          Serial.println("[AUTO-END] Scheduled class end time reached on RTC! Automatically ending class.");
+          newStatus = "ended";
+          newLine2 = "Class Has Ended";
+        }
+      }
 
       if (newStatus.length() > 0) {
         bool changed = (newStatus != currentSessionStatus || newCourse != currentSessionCourse);
@@ -423,9 +438,10 @@ void checkCloudSessionStatus()
         currentDisplayLine2  = newLine2;
 
         if (changed && currentState == STATE_NORMAL) {
-          Serial.printf("[SESSION SYNC] State: %s | Course: %s | Screen: %s / %s\n",
+          Serial.printf("[SESSION SYNC] State: %s | Course: %s | Screen: %s / %s | EndTime: %s\n",
                         currentSessionStatus.c_str(), currentSessionCourse.c_str(),
-                        currentDisplayLine1.c_str(), currentDisplayLine2.c_str());
+                        currentDisplayLine1.c_str(), currentDisplayLine2.c_str(),
+                        currentSessionEndTime.c_str());
           resetScreen();
         }
       }
@@ -644,6 +660,19 @@ void checkFingerprintNormal()
       Serial.println("[SCAN] Attendance session concluded. Terminal rejecting scan.");
       triggerMessageState("Class Has Ended", "Scan Rejected");
       return;
+    }
+
+    // Local RTC check: reject if scheduled class end time has passed
+    if (hasRTC && currentSessionEndTime.length() >= 5) {
+      DateTime now = rtc.now();
+      int endHour = currentSessionEndTime.substring(0, 2).toInt();
+      int endMinute = currentSessionEndTime.substring(3, 5).toInt();
+      if (now.hour() * 60 + now.minute() >= endHour * 60 + endMinute) {
+        currentSessionStatus = "ended";
+        Serial.println("[SCAN] Scheduled class end time has elapsed on RTC. Rejecting scan.");
+        triggerMessageState("Class Has Ended", "Scan Rejected");
+        return;
+      }
     }
 
     // CRITICAL ARCHITECTURE RULE:
