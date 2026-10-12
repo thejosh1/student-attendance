@@ -190,21 +190,33 @@ export class BiometricService {
     const date = dateFilter || todayStr();
     const students = await getAllStudents();
     const sessions = await getAllSessions();
+    const { getAllAttendanceRecords } = await import("@/lib/store");
+    const records = await getAllAttendanceRecords(date);
+
+    const normCourse = (c?: string) => (c || "").trim().toUpperCase();
+    const hasAnyActiveSession = sessions.some((sess) => sess.isActive);
 
     const rows: AttendanceRow[] = students.map((s) => {
-      const r = store.records.find((rec) => rec.studentId === s.id && rec.date === date);
-      const activeSession = sessions.find((sess) => sess.courseCode === s.className);
-      const lateCutoff = activeSession?.lateCutoff || "08:15";
+      const r = records.find((rec) => rec.studentId === s.id && rec.date === date);
+      const sessionForCourse =
+        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(s.className) && sess.isActive) ||
+        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(s.className));
+
+      const isSessionActive = Boolean(
+        (sessionForCourse && sessionForCourse.isActive) || (!sessionForCourse && hasAnyActiveSession)
+      );
+      const lateCutoff = sessionForCourse?.lateCutoff || "08:15";
 
       return {
         ...s,
         checkIn: r?.checkIn ?? null,
         checkOut: r?.checkOut ?? null,
         method: r?.method ?? null,
-        status: statusFor(r?.checkIn ?? null, lateCutoff),
-        sessionTopic: activeSession?.topic,
+        status: statusFor(r?.checkIn ?? null, lateCutoff, isSessionActive),
+        sessionTopic: sessionForCourse?.topic,
       };
     });
+
 
     const filteredRows =
       classFilter && classFilter !== "all"

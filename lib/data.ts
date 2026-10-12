@@ -1,5 +1,6 @@
-export type Status = "present" | "late" | "absent";
+export type Status = "present" | "late" | "pending" | "absent";
 export type Method = "fingerprint";
+
 
 export interface Student {
   id: string;
@@ -139,8 +140,17 @@ export const classes = ["TCE 511", "TCE 504", "TCE 512", "TCE 514"];
 export const todayStr = () => new Date().toLocaleDateString("en-CA");
 export const timeStr = (d = new Date()) => d.toTimeString().slice(0, 5);
 
-export const statusFor = (checkIn: string | null, lateAfter: string = LATE_AFTER): Status =>
-  !checkIn ? "absent" : checkIn > lateAfter ? "late" : "present";
+export const statusFor = (
+  checkIn: string | null,
+  lateAfter: string = LATE_AFTER,
+  isSessionActive: boolean = true
+): Status => {
+  if (checkIn) {
+    return checkIn > lateAfter ? "late" : "present";
+  }
+  return isSessionActive ? "pending" : "absent";
+};
+
 
 /* Empty seed records for clean real-life testing */
 export function seedRecords(): AttendanceRecord[] {

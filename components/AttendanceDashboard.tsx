@@ -15,6 +15,11 @@ const STATUS_STYLES: Record<Status, { badge: string; dot: string; label: string 
     dot: "bg-amber-500",
     label: "Late Arrival",
   },
+  pending: {
+    badge: "bg-blue-50 text-blue-700 ring-blue-600/30 border-blue-200",
+    dot: "bg-blue-500 animate-pulse",
+    label: "Awaiting Scan",
+  },
   absent: {
     badge: "bg-rose-50 text-rose-700 ring-rose-600/30 border-rose-200",
     dot: "bg-rose-500",
@@ -26,8 +31,10 @@ const FILTERS: { key: "all" | Status; label: string }[] = [
   { key: "all", label: "All Students" },
   { key: "present", label: "Present" },
   { key: "late", label: "Late" },
+  { key: "pending", label: "Awaiting Scan" },
   { key: "absent", label: "Absent" },
 ];
+
 
 export default function AttendanceDashboard() {
   const [rows, setRows] = useState<AttendanceRow[]>([]);
@@ -80,10 +87,12 @@ export default function AttendanceDashboard() {
     const total = list.length;
     const present = list.filter((r) => r.status === "present").length;
     const late = list.filter((r) => r.status === "late").length;
+    const pending = list.filter((r) => r.status === "pending").length;
     const absent = list.filter((r) => r.status === "absent").length;
     const rate = total ? Math.round(((present + late) / total) * 100) : 0;
-    return { total, present, late, absent, rate };
+    return { total, present, late, pending, absent, rate };
   }, [rows, className]);
+
 
   const visible = useMemo(
     () =>
@@ -239,13 +248,14 @@ export default function AttendanceDashboard() {
       )}
 
       {/* Metrics Row */}
-      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+      <section className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-6">
         {[
           { label: "Enrolled Students", value: stats.total, color: "text-slate-900", bg: "bg-slate-50", border: "border-slate-200" },
           { label: "Present (Verified)", value: stats.present, color: "text-emerald-700", bg: "bg-emerald-50/50", border: "border-emerald-200" },
           { label: "Late Arrivals", value: stats.late, color: "text-amber-700", bg: "bg-amber-50/50", border: "border-amber-200" },
+          { label: "Awaiting Scan", value: stats.pending, color: "text-blue-700", bg: "bg-blue-50/50", border: "border-blue-200" },
           { label: "Absent", value: stats.absent, color: "text-rose-700", bg: "bg-rose-50/50", border: "border-rose-200" },
-          { label: "Attendance Rate", value: `${stats.rate}%`, color: "text-blue-700", bg: "bg-blue-50/50", border: "border-blue-200" },
+          { label: "Attendance Rate", value: `${stats.rate}%`, color: "text-indigo-700", bg: "bg-indigo-50/50", border: "border-indigo-200" },
         ].map((s) => (
           <div key={s.label} className={`rounded-xl border ${s.border} ${s.bg} p-4 transition hover:shadow-sm`}>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{s.label}</p>
@@ -253,6 +263,7 @@ export default function AttendanceDashboard() {
           </div>
         ))}
       </section>
+
 
       {/* Filters & Search Toolbar */}
       <section className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

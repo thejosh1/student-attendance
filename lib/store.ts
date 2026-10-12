@@ -161,6 +161,28 @@ export async function clearAllStudents(): Promise<void> {
   }
 }
 
+export async function getAllAttendanceRecords(date?: string): Promise<AttendanceRecord[]> {
+  const db = await getDb();
+  if (db) {
+    try {
+      const query = date ? { date } : {};
+      const items = (await db.collection("attendance").find(query).toArray()) as any;
+      if (items && items.length > 0) {
+        // Merge into in-memory store.records
+        const existingIds = new Set(items.map((i: any) => `${i.studentId}_${i.date}`));
+        store.records = [
+          ...store.records.filter((r) => !existingIds.has(`${r.studentId}_${r.date}`)),
+          ...items,
+        ];
+        return items;
+      }
+    } catch (e) {
+      console.warn("Mongo fetch attendance error:", e);
+    }
+  }
+  return date ? store.records.filter((r) => r.date === date) : store.records;
+}
+
 export async function clearAttendance(): Promise<void> {
   store.records = [];
   const db = await getDb();
