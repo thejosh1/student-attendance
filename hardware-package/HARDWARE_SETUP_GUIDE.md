@@ -126,10 +126,11 @@ The cloud system has 4 configured terminals:
 
 1. Student places finger on AS608 optical sensor.
 2. Sensor extracts minutiae features and searches stored templates (`finger.fingerFastSearch()`).
-3. If matched (e.g., slot ID #2001):
+3. If matched (e.g., slot ID #1):
    - ESP32 builds JSON payload:
-     `{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "timestamp":"2026-10-12 08:05:00"}`
-   - Makes HTTPS POST to `/api/biometric/scan`.
+     `{"deviceUserId":"1", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "timestamp":"2026-10-12 08:05:00"}`
+   - Makes HTTPS POST to `https://student-attendance-peach.vercel.app/api/biometric/scan`.
    - **HTTP 200 OK**: LCD displays student name + `Verified!`.
+
    - **HTTP 403 Forbidden**: LCD displays `ACCESS BLOCKED: Device Disabled`.
    - **No WiFi / Server Error**: LCD displays `Saved Offline` and writes entry to MicroSD card `/logs.csv`.

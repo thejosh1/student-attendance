@@ -49,42 +49,25 @@ export default function DevicesPage() {
     }
   };
 
-  // Test scan on a specific device
-  const handleTestScan = async (device: BiometricDevice) => {
+  // Ping / check device status
+  const handlePingDevice = async (device: BiometricDevice) => {
     setTestingId(device.id);
     setTestResult(null);
 
     try {
-      const res = await fetch("/api/biometric/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceUserId: "2001", // Chidiebere Okonkwo
-          deviceId: device.id,
-          method: "fingerprint",
-        }),
-      });
-
-      const data = await res.json();
       setTestResult({
         deviceId: device.id,
-        success: res.ok,
-        status: res.status,
-        message: res.ok
-          ? `SUCCESS (${res.status}): ${data.message || data.student + " verified!"}`
-          : `REJECTED (${res.status}): ${data.error || "Device is disabled"}`,
-      });
-    } catch (e: any) {
-      setTestResult({
-        deviceId: device.id,
-        success: false,
-        status: 500,
-        message: e.message || "Network test failed",
+        success: device.isEnabled,
+        status: device.isEnabled ? 200 : 403,
+        message: device.isEnabled
+          ? `Terminal ${device.id} is ENABLED and ready to accept live biometric scans over WiFi.`
+          : `Terminal ${device.id} is DISABLED by lecturer policy. All physical scans will be blocked with HTTP 403.`,
       });
     } finally {
       setTestingId(null);
     }
   };
+
 
   const enabledCount = devices.filter((d) => d.isEnabled).length;
   const disabledCount = devices.length - enabledCount;
@@ -280,11 +263,11 @@ export default function DevicesPage() {
 
                 <button
                   type="button"
-                  onClick={() => handleTestScan(device)}
+                  onClick={() => handlePingDevice(device)}
                   disabled={testingId === device.id}
                   className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-slate-800 transition disabled:opacity-50"
                 >
-                  {testingId === device.id ? "Testing..." : "Test Scan on Node"}
+                  {testingId === device.id ? "Checking..." : "Check Status"}
                 </button>
               </div>
             </div>

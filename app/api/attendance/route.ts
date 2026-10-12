@@ -19,3 +19,15 @@ export async function GET(req: Request) {
     );
   }
 }
+
+export async function DELETE() {
+  try {
+    const { clearAttendance } = await import("@/lib/store");
+    await clearAttendance();
+    return NextResponse.json({ success: true, message: "Attendance records cleared" });
+  } catch (error: any) {
+    console.error("Attendance clear error:", error);
+    return NextResponse.json({ error: "Failed to clear attendance" }, { status: 500 });
+  }
+}
+

@@ -37,11 +37,11 @@
 const char* ssid = "CONRAD10";
 const char* password = "ROBOTICS";
 
-// 2. Cloud Server Endpoint (Replace with your Vercel deployment URL)
-// Note: When deployed to Vercel, use your production domain, e.g. "https://student-attendance-futo.vercel.app"
-const char* vercelBaseUrl = "https://your-futo-attendance.vercel.app";
+// 2. Cloud Server Endpoint (Live Vercel Production URL)
+const char* vercelBaseUrl = "https://student-attendance-peach.vercel.app";
 const char* scanEndpoint   = "/api/biometric/scan";
 const char* enrollEndpoint = "/api/biometric/enroll";
+
 
 // 3. Hardware Unit Identity (Each lecture hall has its assigned unit)
 // Active unit in this demo: "DEV-FUTO-01" (Hall A / TCE 511)
@@ -212,6 +212,50 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
   return false;
 }
 
+/**
+ * Syncs student enrollment to Vercel API over HTTPS
+ */
+bool sendEnrollToCloud(int fingerId, String name, String regNo, String email) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[CLOUD ENROLL] WiFi not connected. Saved to SD card only.");
+    return false;
+  }
+
+  WiFiClientSecure client;
+  client.setInsecure();
+
+  HTTPClient https;
+  String fullUrl = String(vercelBaseUrl) + String(enrollEndpoint);
+
+  Serial.println("[CLOUD ENROLL] POST -> " + fullUrl);
+
+  if (https.begin(client, fullUrl)) {
+    https.addHeader("Content-Type", "application/json");
+    https.addHeader("X-Device-Id", DEVICE_ID);
+    https.setTimeout(6000);
+
+    String payload = "{";
+    payload += "\"deviceUserId\":\"" + String(fingerId) + "\",";
+    payload += "\"name\":\"" + name + "\",";
+    payload += "\"admissionNo\":\"" + regNo + "\",";
+    payload += "\"email\":\"" + email + "\",";
+    payload += "\"className\":\"" + String(ASSIGNED_COURSE) + "\",";
+    payload += "\"deviceId\":\"" + String(DEVICE_ID) + "\"";
+    payload += "}";
+
+    int httpCode = https.POST(payload);
+    Serial.printf("[CLOUD ENROLL] Response Code: %d\n", httpCode);
+    if (httpCode >= 200 && httpCode < 300) {
+      Serial.println("[CLOUD ENROLL] Student registered to cloud successfully!");
+      https.end();
+      return true;
+    }
+    https.end();
+  }
+  return false;
+}
+
+
 /* ---------------- SETUP & HW CHECKS ---------------- */
 
 void setup()
@@ -370,8 +414,10 @@ void loop()
               file.close();
             }
           }
+          sendEnrollToCloud(enrollID, enrollName, enrollRegNo, enrollEmail);
           triggerMessageState("ENROLLED!", enrollName);
         } else {
+
           triggerMessageState("FAILED", "Could Not Save");
         }
       }

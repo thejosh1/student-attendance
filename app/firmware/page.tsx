@@ -80,9 +80,10 @@ export default function FirmwarePage() {
           </div>
           <h3 className="text-base font-bold text-slate-900">How the Device Talks to Vercel</h3>
           <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-            The ESP32 uses <code>HTTPClient</code> with <code>WiFiClientSecure</code> and <code>client.setInsecure()</code>. Whenever a student places their finger, the AS608 matches the template and the ESP32 sends an HTTPS POST directly to <code>https://your-vercel-domain/api/biometric/scan</code> with device ID and slot ID.
+            The ESP32 uses <code>HTTPClient</code> with <code>WiFiClientSecure</code> and <code>client.setInsecure()</code>. Whenever a student places their finger, the AS608 matches the template and the ESP32 sends an HTTPS POST directly to <code>https://student-attendance-peach.vercel.app/api/biometric/scan</code> with device ID and slot ID.
           </p>
         </div>
+
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-800 font-bold mb-3">
@@ -176,23 +177,24 @@ export default function FirmwarePage() {
 
         <div className="mt-4 space-y-4">
           <div>
-            <span className="text-xs font-bold text-slate-700">1. Simulate Biometric Scan (Active Device DEV-FUTO-01):</span>
+            <span className="text-xs font-bold text-slate-700">1. Physical Biometric Scan (Active Device DEV-FUTO-01):</span>
             <pre className="mt-1.5 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs font-mono text-emerald-400">
-{`curl -X POST https://your-futo-attendance.vercel.app/api/biometric/scan \\
+{`curl -X POST https://student-attendance-peach.vercel.app/api/biometric/scan \\
   -H "Content-Type: application/json" \\
-  -d '{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "method":"fingerprint"}'`}
+  -d '{"deviceUserId":"1", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "method":"fingerprint"}'`}
             </pre>
           </div>
 
           <div>
             <span className="text-xs font-bold text-slate-700">2. Test Disabled Device Rejection (Device DEV-FUTO-02):</span>
             <pre className="mt-1.5 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs font-mono text-rose-400">
-{`curl -X POST https://your-futo-attendance.vercel.app/api/biometric/scan \\
+{`curl -X POST https://student-attendance-peach.vercel.app/api/biometric/scan \\
   -H "Content-Type: application/json" \\
-  -d '{"deviceUserId":"2005", "deviceId":"DEV-FUTO-02", "classId":"TCE 504", "method":"fingerprint"}'
+  -d '{"deviceUserId":"1", "deviceId":"DEV-FUTO-02", "classId":"TCE 504", "method":"fingerprint"}'
 # Response: HTTP 403 Forbidden: {"error": "Device is disabled by lecturer"}`}
             </pre>
           </div>
+
 
           <div>
             <span className="text-xs font-bold text-slate-700">3. MongoDB Configuration on Vercel:</span>

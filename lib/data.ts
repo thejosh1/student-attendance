@@ -120,8 +120,8 @@ export const initialSessions: ClassSession[] = [
   {
     id: "sess-01",
     courseCode: "TCE 511",
-    topic: "Microwave Engineering & Transmission Systems",
-    lecturerName: "Engr. Prof. K. C. Okafor",
+    topic: "Telecommunication Engineering Lecture",
+    lecturerName: "Course Lecturer",
     date: new Date().toLocaleDateString("en-CA"),
     startTime: "08:00",
     lateCutoff: "08:15",
@@ -129,60 +129,10 @@ export const initialSessions: ClassSession[] = [
     deviceId: "DEV-FUTO-01",
     isActive: true,
   },
-  {
-    id: "sess-02",
-    courseCode: "TCE 504",
-    topic: "Satellite Communications & Space Systems",
-    lecturerName: "Dr. Mrs. A. N. Ezeh",
-    date: new Date().toLocaleDateString("en-CA"),
-    startTime: "10:15",
-    lateCutoff: "10:30",
-    endTime: "12:15",
-    deviceId: "DEV-FUTO-02",
-    isActive: false,
-  },
-  {
-    id: "sess-03",
-    courseCode: "TCE 512",
-    topic: "Optical Communication Systems & Photonics",
-    lecturerName: "Engr. Dr. O. M. Nwoke",
-    date: new Date().toLocaleDateString("en-CA"),
-    startTime: "12:30",
-    lateCutoff: "12:45",
-    endTime: "14:30",
-    deviceId: "DEV-FUTO-03",
-    isActive: false,
-  },
-  {
-    id: "sess-04",
-    courseCode: "TCE 514",
-    topic: "Wireless & Mobile Communication Engineering",
-    lecturerName: "Dr. C. I. Nwachukwu",
-    date: new Date().toLocaleDateString("en-CA"),
-    startTime: "14:45",
-    lateCutoff: "15:00",
-    endTime: "16:45",
-    deviceId: "DEV-FUTO-04",
-    isActive: false,
-  },
 ];
 
-export const students: Student[] = [
-  { id: "s1", deviceUserId: "2001", admissionNo: "2019/114820", name: "Chidiebere Okonkwo", className: "TCE 511", email: "c.okonkwo@futo.edu.ng", enrolledAt: "2024-09-12" },
-  { id: "s2", deviceUserId: "2002", admissionNo: "2019/115432", name: "Nkechi Anyaogu", className: "TCE 511", email: "n.anyaogu@futo.edu.ng", enrolledAt: "2024-09-12" },
-  { id: "s3", deviceUserId: "2003", admissionNo: "2019/116901", name: "Emeka Nwosu", className: "TCE 511", email: "e.nwosu@futo.edu.ng", enrolledAt: "2024-09-12" },
-  { id: "s4", deviceUserId: "2004", admissionNo: "2019/117210", name: "Somtochukwu Eze", className: "TCE 511", email: "s.eze@futo.edu.ng", enrolledAt: "2024-09-13" },
-  { id: "s5", deviceUserId: "2005", admissionNo: "2019/118345", name: "Ifeanyi Okafor", className: "TCE 504", email: "i.okafor@futo.edu.ng", enrolledAt: "2024-09-13" },
-  { id: "s6", deviceUserId: "2006", admissionNo: "2019/119102", name: "Chinaza Nwachukwu", className: "TCE 504", email: "c.nwachukwu@futo.edu.ng", enrolledAt: "2024-09-14" },
-  { id: "s7", deviceUserId: "2007", admissionNo: "2019/120455", name: "Kenechukwu Obi", className: "TCE 504", email: "k.obi@futo.edu.ng", enrolledAt: "2024-09-14" },
-  { id: "s8", deviceUserId: "2008", admissionNo: "2020/121870", name: "Amarachi Okereke", className: "TCE 504", email: "a.okereke@futo.edu.ng", enrolledAt: "2024-09-15" },
-  { id: "s9", deviceUserId: "2009", admissionNo: "2020/122340", name: "Oluebube Ibe", className: "TCE 511", email: "o.ibe@futo.edu.ng", enrolledAt: "2024-09-15" },
-  { id: "s10", deviceUserId: "2010", admissionNo: "2020/123118", name: "Chukwuma Nze", className: "TCE 511", email: "c.nze@futo.edu.ng", enrolledAt: "2024-09-16" },
-  { id: "s11", deviceUserId: "2011", admissionNo: "2020/124502", name: "Tobechukwu Uzoma", className: "TCE 504", email: "t.uzoma@futo.edu.ng", enrolledAt: "2024-09-16" },
-  { id: "s12", deviceUserId: "2012", admissionNo: "2020/125890", name: "Ngozi Madu", className: "TCE 504", email: "n.madu@futo.edu.ng", enrolledAt: "2024-09-17" },
-  { id: "s13", deviceUserId: "2013", admissionNo: "2019/126744", name: "Onyedika Ekeh", className: "TCE 511", email: "o.ekeh@futo.edu.ng", enrolledAt: "2024-09-17" },
-  { id: "s14", deviceUserId: "2014", admissionNo: "2020/127301", name: "Chetachi Onyeka", className: "TCE 511", email: "c.onyeka@futo.edu.ng", enrolledAt: "2024-09-18" },
-];
+/* Empty default student directory for real enrollment */
+export const students: Student[] = [];
 
 export const classes = ["TCE 511", "TCE 504", "TCE 512", "TCE 514"];
 
@@ -192,25 +142,8 @@ export const timeStr = (d = new Date()) => d.toTimeString().slice(0, 5);
 export const statusFor = (checkIn: string | null, lateAfter: string = LATE_AFTER): Status =>
   !checkIn ? "absent" : checkIn > lateAfter ? "late" : "present";
 
+/* Empty seed records for clean real-life testing */
 export function seedRecords(): AttendanceRecord[] {
-  const date = todayStr();
-  const seed: [string, string, string | null, Method, string, string][] = [
-    ["s1", "07:45", null, "fingerprint", "DEV-FUTO-01", "TCE 511"],
-    ["s2", "07:58", null, "fingerprint", "DEV-FUTO-01", "TCE 511"],
-    ["s5", "08:04", null, "fingerprint", "DEV-FUTO-01", "TCE 504"],
-    ["s6", "08:22", null, "fingerprint", "DEV-FUTO-01", "TCE 504"],
-    ["s8", "07:50", null, "fingerprint", "DEV-FUTO-01", "TCE 504"],
-    ["s9", "08:08", null, "fingerprint", "DEV-FUTO-01", "TCE 511"],
-    ["s10", "07:35", null, "fingerprint", "DEV-FUTO-01", "TCE 511"],
-    ["s11", "08:30", null, "fingerprint", "DEV-FUTO-01", "TCE 504"],
-  ];
-  return seed.map(([studentId, checkIn, checkOut, method, deviceId, courseCode]) => ({
-    studentId,
-    date,
-    checkIn,
-    checkOut,
-    method,
-    deviceId,
-    courseCode,
-  }));
+  return [];
 }
+

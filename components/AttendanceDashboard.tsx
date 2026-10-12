@@ -40,7 +40,7 @@ export default function AttendanceDashboard() {
   const [selectedDeviceId, setSelectedDeviceId] = useState("DEV-FUTO-01");
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isScanning, setIsScanning] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -68,7 +68,7 @@ export default function AttendanceDashboard() {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 5000);
+    const id = setInterval(load, 4000);
     return () => clearInterval(id);
   }, [load]);
 
@@ -98,54 +98,20 @@ export default function AttendanceDashboard() {
     [rows, filter, className, query],
   );
 
-  async function simulateScan() {
-    if (isScanning) return;
-    setIsScanning(true);
-
-    const pool = (className === "all" ? rows : rows.filter((r) => r.className === className)).filter(
-      (r) => r.status === "absent"
-    );
-    const list = pool.length ? pool : rows;
-    const target = list[Math.floor(Math.random() * list.length)];
-
-    if (!target) {
-      setIsScanning(false);
-      return;
-    }
-
+  async function handleClearAttendance() {
+    if (!confirm("Clear today's recorded attendance? Student rosters and slots will be preserved.")) return;
+    setIsClearing(true);
     try {
-      const res = await fetch("/api/biometric/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          deviceUserId: target.deviceUserId,
-          deviceId: selectedDeviceId,
-          classId: target.className,
-          method: "fingerprint",
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setToast({
-          message: data.error || `Scan blocked on ${selectedDeviceId}`,
-          type: "error",
-        });
-      } else {
-        setToast({
-          message: `Fingerprint Verified: ${data.student} (${target.admissionNo}) — ${data.action.toUpperCase()} on [${selectedDeviceId}] at ${data.time}`,
-          type: data.action === "duplicate" ? "info" : "success",
-        });
+      const res = await fetch("/api/attendance", { method: "DELETE" });
+      if (res.ok) {
+        setToast({ message: "Attendance records cleared for today. Ready for fresh scans!", type: "success" });
+        setTimeout(() => setToast(null), 4000);
         await load();
       }
-      setTimeout(() => setToast(null), 5000);
-    } catch (e: any) {
-      console.error("Scan error:", e);
-      setToast({ message: "Network error during scan", type: "error" });
-      setTimeout(() => setToast(null), 4000);
+    } catch (e) {
+      console.error("Clear error:", e);
     } finally {
-      setIsScanning(false);
+      setIsClearing(false);
     }
   }
 
@@ -170,10 +136,10 @@ export default function AttendanceDashboard() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 tracking-wide">
-                  W.O.R.C PLATFORM
+                  REAL-TIME TERMINAL
                 </span>
                 <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                  Biometric Attendance & Hardware IoT Hub
+                  ESP32 Biometric Verification Engine
                 </span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">
@@ -185,7 +151,7 @@ export default function AttendanceDashboard() {
             </div>
           </div>
 
-          {/* Quick Actions & Scanner Node Selector */}
+          {/* Real-time Hardware Actions & Scanner Node Selector */}
           <div className="flex flex-wrap items-center gap-2.5">
             {/* Terminal Selector */}
             <div className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 p-1.5 text-xs">
@@ -210,32 +176,44 @@ export default function AttendanceDashboard() {
               )}
             </div>
 
-            {/* Simulate Scan Button */}
-            <button
-              onClick={simulateScan}
-              disabled={isScanning}
-              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-sm transition active:scale-[0.98] disabled:opacity-60 ${
-                activeDevice?.isEnabled ? "bg-slate-900 hover:bg-slate-800" : "bg-rose-700 hover:bg-rose-800"
-              }`}
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 11c0 3.5-1.5 6.5-4 8.5" />
-                <path d="M12 3a9 9 0 0 0-9 9c0 3.5 1.5 6.5 4 8.5" />
-                <path d="M12 7c-2.76 0-5 2.24-5 5 0 2.5 1.2 4.5 3 6" />
-              </svg>
-              {isScanning ? "Processing Scan…" : `Simulate Scan on ${selectedDeviceId}`}
-            </button>
+            {/* Hardware Live Listener Status */}
+            {activeDevice?.isEnabled ? (
+              <div className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm">
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span>{selectedDeviceId} Active · Ready for Hardware Scans</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-xl bg-rose-800 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm">
+                <span className="h-2 w-2 rounded-full bg-rose-300"></span>
+                <span>{selectedDeviceId} Disabled</span>
+              </div>
+            )}
+
+            {/* Clear Attendance Button if scans exist */}
+            {(stats.present > 0 || stats.late > 0) && (
+              <button
+                onClick={handleClearAttendance}
+                disabled={isClearing}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                Clear Today
+              </button>
+            )}
 
             {/* Quick Link to Enroll */}
             <Link
               href="/enroll"
               className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
             >
-              + Enroll Student
+              + Enroll Real Student
             </Link>
           </div>
         </div>
       </header>
+
 
       {/* Disabled Device Warning Banner if user selects a disabled unit */}
       {activeDevice && !activeDevice.isEnabled && (
@@ -355,11 +333,36 @@ export default function AttendanceDashboard() {
               )}
               {!loading && visible.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-12 text-center text-slate-400">
-                    No student attendance records matching criteria.
+                  <td colSpan={6} className="px-5 py-16 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 mb-3">
+                        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 11c0 3.5-1.5 6.5-4 8.5" />
+                          <path d="M12 3a9 9 0 0 0-9 9c0 3.5 1.5 6.5 4 8.5" />
+                          <path d="M12 7c-2.76 0-5 2.24-5 5 0 2.5 1.2 4.5 3 6" />
+                        </svg>
+                      </div>
+                      <h4 className="text-base font-bold text-slate-900">
+                        {rows.length === 0 ? "No Students Registered Yet" : "No Matching Attendance Records"}
+                      </h4>
+                      <p className="text-xs text-slate-500 mt-1">
+                        {rows.length === 0
+                          ? "All dummy data has been removed. Register real people in the Enrollment Portal with their optical sensor slot IDs to start testing."
+                          : "Try adjusting your search query or course filters above."}
+                      </p>
+                      {rows.length === 0 && (
+                        <Link
+                          href="/enroll"
+                          className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow hover:bg-emerald-700 transition"
+                        >
+                          + Go to Enrollment Portal
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )}
+
               {visible.map((r) => {
                 const style = STATUS_STYLES[r.status];
                 return (

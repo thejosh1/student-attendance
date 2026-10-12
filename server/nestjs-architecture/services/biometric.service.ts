@@ -82,6 +82,15 @@ export class BiometricService {
       };
       store.records.push(record);
 
+      const db = await import("@/lib/store").then((m) => m.getDb());
+      if (db) {
+        try {
+          await db.collection("attendance").insertOne({ ...record });
+        } catch (e) {
+          console.warn("Mongo insert attendance record error:", e);
+        }
+      }
+
       const status = statusFor(time, lateCutoff);
       return {
         action: "check-in",
@@ -109,6 +118,18 @@ export class BiometricService {
     }
 
     existing.checkOut = time;
+    const db = await import("@/lib/store").then((m) => m.getDb());
+    if (db) {
+      try {
+        await db.collection("attendance").updateOne(
+          { studentId: student.id, date },
+          { $set: { checkOut: time } }
+        );
+      } catch (e) {
+        console.warn("Mongo update attendance record checkout error:", e);
+      }
+    }
+
     return {
       action: "check-out",
       status: 200,
@@ -129,13 +150,13 @@ export class BiometricService {
 
     const students = await getAllStudents();
 
-    // Generate or format slot ID
+    // Generate or format slot ID (starting at 1 for physical AS608 optical sensor)
     let slotId = dto.deviceUserId;
     if (!slotId) {
       const maxId = students.reduce((max, s) => {
         const num = parseInt(s.deviceUserId, 10);
         return !isNaN(num) && num > max ? num : max;
-      }, 2000);
+      }, 0);
       slotId = String(maxId + 1);
     }
 
@@ -150,15 +171,17 @@ export class BiometricService {
       deviceId: dto.deviceId || "DEV-FUTO-01",
     };
 
-    store.students.unshift(newStudent);
+    const { addStudent } = await import("@/lib/store");
+    await addStudent(newStudent);
 
     return {
       success: true,
       status: 201,
       student: newStudent,
-      message: `Student ${newStudent.name} (${newStudent.admissionNo}) successfully enrolled into ${newStudent.className} with Biometric Template #${newStudent.deviceUserId}!`,
+      message: `Student ${newStudent.name} (${newStudent.admissionNo}) successfully enrolled with Biometric Template Slot #${newStudent.deviceUserId}!`,
     };
   }
+
 
   /**
    * Get formatted attendance rows for dashboard

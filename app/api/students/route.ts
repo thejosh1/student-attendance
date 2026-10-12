@@ -43,3 +43,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to add student" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    const all = searchParams.get("all");
+
+    const { deleteStudent, clearAllStudents } = await import("@/lib/store");
+
+    if (all === "true") {
+      await clearAllStudents();
+      return NextResponse.json({ success: true, message: "All students deleted" });
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: "Missing student id or ?all=true" }, { status: 400 });
+    }
+
+    await deleteStudent(id);
+    return NextResponse.json({ success: true, message: `Student ${id} deleted` });
+  } catch (error: any) {
+    console.error("Students delete error:", error);
+    return NextResponse.json({ error: "Failed to delete student" }, { status: 500 });
+  }
+}
+
