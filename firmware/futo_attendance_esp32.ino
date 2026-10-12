@@ -1,7 +1,8 @@
 /*
   ====================================================================================
-  FUTO BIOMETRIC ATTENDANCE SYSTEM - ESP32 FIRMWARE (CLOUD SYNC EDITION)
-  Federal University of Technology, Owerri (FUTO) - School of Engineering (SEET)
+  W.O.R.C — Wireless Operations for Real-time Check-in (ESP32 FIRMWARE)
+  Biometric Attendance Terminal & Cloud Synchronization Edition
+  ====================================================================================
   
   HARDWARE:
   - ESP32-WROOM-32 Microcontroller
@@ -232,7 +233,7 @@ void setup()
     Serial.println("[HW] LCD not detected. Running serial mode.");
   }
 
-  showMessage("FUTO Biometrics", "System Booting...");
+  showMessage("W.O.R.C Terminal", "System Booting...");
   delay(1000); 
 
   /* HARDWARE CHECK 1: RTC DS3231 */

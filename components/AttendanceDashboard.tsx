@@ -169,15 +169,15 @@ export default function AttendanceDashboard() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 tracking-wide">
-                  FUTO
+                <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 tracking-wide">
+                  W.O.R.C PLATFORM
                 </span>
                 <span className="text-xs font-medium uppercase tracking-wider text-slate-500">
-                  School of Engineering and Engineering Technology
+                  Biometric Attendance & Hardware IoT Hub
                 </span>
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-slate-900 mt-0.5">
-                Biometric Student Attendance System
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">
+                W.O.R.C — Wireless Operations for Real-time Check-in
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
                 Session Date: <span className="font-semibold text-slate-700">{date || "Today"}</span> · Late Cutoff: <span className="font-semibold text-slate-700">{LATE_AFTER} AM</span> · Active Session: <span className="font-semibold text-emerald-700">{activeSession ? activeSession.topic : "General Lecture"}</span>

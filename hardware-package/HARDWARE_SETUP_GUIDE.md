@@ -1,5 +1,5 @@
 # ESP32 Biometric Terminal Hardware Setup Guide
-## Federal University of Technology, Owerri (FUTO) - SEET Biometric Attendance Platform
+## W.O.R.C — Wireless Operations for Real-time Check-in
 
 This guide is for the hardware engineer configuring and flashing the ESP32 microcontroller units to connect with the cloud platform.
 

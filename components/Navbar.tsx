@@ -41,10 +41,10 @@ export default function Navbar() {
       <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-emerald-950 px-4 py-1.5 text-xs text-emerald-100">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-bold tracking-wider text-emerald-400">FUTO SEET</span>
+            <span className="font-bold tracking-wider text-emerald-400">W.O.R.C</span>
             <span className="hidden sm:inline text-emerald-300">·</span>
             <span className="hidden sm:inline text-emerald-200">
-              Department of Computer & Electrical Engineering
+              Wireless Operations for Real-time Check-in
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -82,15 +82,15 @@ export default function Navbar() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition">
-                  FUTO Biometrics
+                <span className="text-base font-extrabold tracking-tight text-slate-900 group-hover:text-emerald-700 transition">
+                  W.O.R.C
                 </span>
                 <span className="rounded bg-emerald-100 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-800">
-                  ESP32
+                  ESP32 IoT
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 hidden sm:block">
-                Cloud Fingerprint Attendance & Hardware Hub
+              <p className="text-[11px] font-medium text-slate-500 hidden sm:block">
+                Wireless Operations for Real-time Check-in
               </p>
             </div>
           </Link>
