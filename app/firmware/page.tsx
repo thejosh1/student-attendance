@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import LecturerGate from "@/components/LecturerGate";
 
 export default function FirmwarePage() {
   const [copied, setCopied] = useState(false);
@@ -20,7 +21,11 @@ export default function FirmwarePage() {
   };
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <LecturerGate
+      pageTitle="ESP32 Hardware & Firmware Center"
+      pageDescription="Flashing guides, wiring schematics, and hardware firmware synchronization"
+    >
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header Banner */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -210,6 +215,7 @@ export default function FirmwarePage() {
           </div>
         </div>
       </section>
-    </main>
+      </main>
+    </LecturerGate>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BiometricDevice } from "@/lib/data";
+import LecturerGate from "@/components/LecturerGate";
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState<BiometricDevice[]>([]);
@@ -73,7 +74,11 @@ export default function DevicesPage() {
   const disabledCount = devices.length - enabledCount;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <LecturerGate
+      pageTitle="Biometric Devices Hub"
+      pageDescription="Manage & Toggle Physical ESP32 Scanner Terminals across Lecture Theatres and Laboratories"
+    >
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       {/* Header Banner */}
       <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -273,6 +278,7 @@ export default function DevicesPage() {
             </div>
           ))}
       </section>
-    </main>
+      </main>
+    </LecturerGate>
   );
 }

@@ -255,6 +255,68 @@ bool sendEnrollToCloud(int fingerId, String name, String regNo, String email) {
   return false;
 }
 
+/* ---------------- CLOUD COMMAND POLLING (FOR REAL HARDWARE ENROLLMENT) ---------------- */
+unsigned long lastCommandCheck = 0;
+
+String parseJsonString(String json, String key) {
+  int k = json.indexOf("\"" + key + "\"");
+  if (k < 0) return "";
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return "";
+  int q1 = json.indexOf('"', colon);
+  if (q1 < 0) return "";
+  int q2 = json.indexOf('"', q1 + 1);
+  if (q2 < 0) return "";
+  return json.substring(q1 + 1, q2);
+}
+
+int parseJsonInt(String json, String key) {
+  int k = json.indexOf("\"" + key + "\"");
+  if (k < 0) return 0;
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return 0;
+  int start = colon + 1;
+  while (start < json.length() && (json.charAt(start) == ' ' || json.charAt(start) == '"')) start++;
+  int end = start;
+  while (end < json.length() && isDigit(json.charAt(end))) end++;
+  return json.substring(start, end).toInt();
+}
+
+/**
+ * Checks cloud every 2.5s for pending student enrollment commands
+ */
+void checkCloudEnrollmentCommand()
+{
+  if (WiFi.status() != WL_CONNECTED || currentState != STATE_NORMAL) return;
+  if (millis() - lastCommandCheck < 2500) return;
+  lastCommandCheck = millis();
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient https;
+  String url = String(vercelBaseUrl) + String(enrollEndpoint) + "?deviceId=" + String(DEVICE_ID);
+
+  if (https.begin(client, url)) {
+    https.setTimeout(3500);
+    int httpCode = https.GET();
+    if (httpCode == 200) {
+      String payload = https.getString();
+      if (payload.indexOf("\"hasPending\":true") > 0) {
+        Serial.println("[CLOUD COMMAND] Real Enrollment Command Received: " + payload);
+        int targetSlot = parseJsonInt(payload, "slotId");
+        enrollID = targetSlot > 0 ? targetSlot : getNextAvailableID();
+        enrollName = parseJsonString(payload, "name");
+        enrollRegNo = parseJsonString(payload, "admissionNo");
+        enrollEmail = parseJsonString(payload, "email");
+
+        showMessage("Place Finger", enrollName);
+        stateTimer = millis();
+        currentState = STATE_ENROLL_WAIT_1;
+      }
+    }
+    https.end();
+  }
+}
 
 /* ---------------- SETUP & HW CHECKS ---------------- */
 
@@ -369,6 +431,7 @@ void loop()
   {
     case STATE_NORMAL:
       if (hasFinger) checkFingerprintNormal();
+      checkCloudEnrollmentCommand();
       break;
 
     case STATE_ENROLL_WAIT_1:
@@ -624,8 +687,10 @@ void handleEnroll()
   enrollRegNo = server.hasArg("regNo") ? server.arg("regNo") : "FUTO-REG";
   enrollEmail = server.hasArg("email") ? server.arg("email") : "student@futo.edu.ng";
 
-  enrollID = getNextAvailableID();
-  showMessage("Place Finger", "Waiting...");
+  int requestedSlot = server.hasArg("slot") ? server.arg("slot").toInt() : 0;
+  enrollID = requestedSlot > 0 ? requestedSlot : getNextAvailableID();
+
+  showMessage("Place Finger", enrollName);
   stateTimer = millis();
   currentState = STATE_ENROLL_WAIT_1;
   server.send(200, "text/html", "Enrolling " + enrollName + " as ID: " + String(enrollID) + "<br><a href='/'>Back</a>");

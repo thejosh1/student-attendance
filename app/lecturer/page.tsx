@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BiometricDevice, ClassSession, classes } from "@/lib/data";
+import LecturerGate from "@/components/LecturerGate";
 
 export default function LecturerPage() {
   const [sessions, setSessions] = useState<ClassSession[]>([]);
@@ -126,9 +127,13 @@ export default function LecturerPage() {
   const selectedDevice = devices.find((d) => d.id === assignedDeviceId);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header Banner */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <LecturerGate
+      pageTitle="Class Attendance Session Manager"
+      pageDescription="Configure course tracking, activate physical terminal nodes, and manage attendance sessions"
+    >
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header Banner */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-800 text-white shadow-md shadow-blue-700/20">
@@ -441,6 +446,7 @@ export default function LecturerPage() {
           <p className="font-semibold text-slate-100">{toast.message}</p>
         </div>
       )}
-    </main>
+      </main>
+    </LecturerGate>
   );
 }

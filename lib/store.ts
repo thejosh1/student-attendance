@@ -10,12 +10,23 @@ import {
 } from "./data";
 import clientPromise from "./mongodb";
 
+export interface PendingEnrollCommand {
+  deviceId: string;
+  slotId: number;
+  name: string;
+  admissionNo: string;
+  email: string;
+  className: string;
+  createdAt: number;
+}
+
 // Persistent store in globalThis for Next.js hot module reloading & memory cache
 interface GlobalAttendanceStore {
   students: Student[];
   records: AttendanceRecord[];
   devices: BiometricDevice[];
   sessions: ClassSession[];
+  pendingEnrollments: Record<string, PendingEnrollCommand>;
   initialized: boolean;
 }
 
@@ -26,6 +37,7 @@ export const store: GlobalAttendanceStore = (g.__attendanceStore ??= {
   records: seedRecords(),
   devices: [...initialDevices],
   sessions: [...initialSessions],
+  pendingEnrollments: {},
   initialized: false,
 });
 
@@ -282,3 +294,55 @@ export async function toggleSessionStatus(sessionId: string): Promise<ClassSessi
   }
   return sess || null;
 }
+
+export async function setPendingEnrollCommand(cmd: PendingEnrollCommand) {
+  if (!store.pendingEnrollments) store.pendingEnrollments = {};
+  store.pendingEnrollments[cmd.deviceId] = cmd;
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.collection("pending_commands").updateOne(
+        { deviceId: cmd.deviceId },
+        { $set: cmd },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn("Mongo set pending command error:", e);
+    }
+  }
+}
+
+export async function getPendingEnrollCommand(deviceId: string): Promise<PendingEnrollCommand | null> {
+  const db = await getDb();
+  if (db) {
+    try {
+      const item = (await db.collection("pending_commands").findOne({ deviceId })) as any;
+      if (item && Date.now() - item.createdAt < 180000) {
+        return item;
+      }
+    } catch (e) {
+      console.warn("Mongo get pending command error:", e);
+    }
+  }
+  if (!store.pendingEnrollments) store.pendingEnrollments = {};
+  const cmd = store.pendingEnrollments[deviceId];
+  if (cmd && Date.now() - cmd.createdAt < 180000) {
+    return cmd;
+  }
+  return null;
+}
+
+export async function clearPendingEnrollCommand(deviceId: string) {
+  if (store.pendingEnrollments) {
+    delete store.pendingEnrollments[deviceId];
+  }
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.collection("pending_commands").deleteOne({ deviceId });
+    } catch (e) {
+      console.warn("Mongo clear pending command error:", e);
+    }
+  }
+}
+
