@@ -4,6 +4,7 @@ export interface ScanAttendanceDto {
   method?: "fingerprint";
   timestamp?: string;   // ISO timestamp
   classId?: string;     // e.g. TCE 511
+  isOfflineSync?: boolean;
 }
 
 export interface EnrollStudentDto {

@@ -254,13 +254,74 @@ export async function updateDeviceStatus(deviceId: string, isEnabled: boolean): 
 }
 
 export async function getAllSessions(): Promise<ClassSession[]> {
+  const norm = (c?: string) => (c || "").trim().toUpperCase();
   const db = await getDb();
+  let list = store.sessions;
   if (db) {
     try {
       const items = (await db.collection("sessions").find({}).toArray()) as any;
-      if (items.length > 0) return items;
+      if (items && items.length > 0) {
+        list = items;
+        store.sessions = items;
+      }
     } catch (e) {
       console.warn("Mongo fetch sessions error:", e);
+    }
+  }
+
+  // Deduplicate so there is ALWAYS strictly 1 class section per course code
+  const seen = new Set<string>();
+  const unique: ClassSession[] = [];
+  const sorted = [...list].sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0));
+  for (const s of sorted) {
+    const key = norm(s.courseCode);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(s);
+    }
+  }
+  store.sessions = unique;
+  return unique;
+}
+
+export async function deleteSession(sessionId: string): Promise<boolean> {
+  store.sessions = store.sessions.filter((s) => s.id !== sessionId);
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.collection("sessions").deleteOne({ id: sessionId });
+    } catch (e) {
+      console.warn("Mongo delete session error:", e);
+    }
+  }
+  return true;
+}
+
+export async function deduplicateSessions(): Promise<ClassSession[]> {
+  const norm = (c?: string) => (c || "").trim().toUpperCase();
+  const seenCourses = new Set<string>();
+  const uniqueSessions: ClassSession[] = [];
+
+  // Prioritize active sessions first, then newer sessions
+  const sorted = [...store.sessions].sort((a, b) => (b.isActive ? 1 : 0) - (a.isActive ? 1 : 0));
+  for (const s of sorted) {
+    const key = norm(s.courseCode);
+    if (!seenCourses.has(key)) {
+      seenCourses.add(key);
+      uniqueSessions.push(s);
+    }
+  }
+  store.sessions = uniqueSessions;
+
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.collection("sessions").deleteMany({});
+      if (uniqueSessions.length > 0) {
+        await db.collection("sessions").insertMany(uniqueSessions as any);
+      }
+    } catch (e) {
+      console.warn("Mongo deduplicate sessions error:", e);
     }
   }
   return store.sessions;
@@ -268,22 +329,28 @@ export async function getAllSessions(): Promise<ClassSession[]> {
 
 export async function addSession(session: ClassSession): Promise<ClassSession> {
   const db = await getDb();
+  const norm = (c?: string) => (c || "").trim().toUpperCase();
+
+  // Enforce strictly 1 session per course: prune any prior session with the same course code
+  store.sessions = store.sessions.filter(
+    (s) => norm(s.courseCode) !== norm(session.courseCode)
+  );
+
   if (session.isActive) {
     // A fingerprint terminal CANNOT be taking attendance for 2 classes at once!
-    // Also, a course can only have one active session slot at once!
     for (const existing of store.sessions) {
-      if (existing.deviceId === session.deviceId || existing.courseCode === session.courseCode) {
+      if (existing.deviceId === session.deviceId) {
         existing.isActive = false;
       }
     }
     if (db) {
       try {
         await db.collection("sessions").updateMany(
-          { $or: [{ deviceId: session.deviceId }, { courseCode: session.courseCode }] },
+          { deviceId: session.deviceId },
           { $set: { isActive: false } }
         );
       } catch (e) {
-        console.warn("Mongo deactivate existing sessions error:", e);
+        console.warn("Mongo deactivate existing device sessions error:", e);
       }
     }
   }
@@ -291,6 +358,10 @@ export async function addSession(session: ClassSession): Promise<ClassSession> {
   store.sessions.unshift(session);
   if (db) {
     try {
+      // Remove any duplicate in DB for same course
+      await db.collection("sessions").deleteMany({
+        courseCode: { $regex: new RegExp(`^${session.courseCode.trim()}$`, "i") },
+      });
       await db.collection("sessions").insertOne({ ...session } as any);
     } catch (e) {
       console.warn("Mongo add session error:", e);
@@ -299,18 +370,38 @@ export async function addSession(session: ClassSession): Promise<ClassSession> {
   return session;
 }
 
-export async function toggleSessionStatus(sessionId: string): Promise<ClassSession | null> {
-  const sess = store.sessions.find((s) => s.id === sessionId);
+export async function toggleSessionStatus(
+  sessionId: string,
+  action?: "end" | "activate" | "toggle"
+): Promise<ClassSession | null> {
+  const db = await getDb();
+  await getAllSessions();
+
+  let sess = store.sessions.find((s) => s.id === sessionId);
+  if (!sess && db) {
+    sess = (await db.collection("sessions").findOne({ id: sessionId })) as any;
+    if (sess) {
+      store.sessions.push(sess);
+    }
+  }
   if (!sess) return null;
 
-  const db = await getDb();
-  const willBeActive = !sess.isActive;
+  let willBeActive: boolean;
+  if (action === "end") {
+    willBeActive = false;
+  } else if (action === "activate") {
+    willBeActive = true;
+  } else {
+    willBeActive = !sess.isActive;
+  }
 
   if (willBeActive) {
     // Activating this session: deactivate all other sessions on this device and for this course!
+    const nowIso = new Date().toISOString();
     for (const other of store.sessions) {
       if (other.id !== sessionId && (other.deviceId === sess.deviceId || other.courseCode === sess.courseCode)) {
         other.isActive = false;
+        other.endedAt = nowIso;
       }
     }
     if (db) {
@@ -320,23 +411,118 @@ export async function toggleSessionStatus(sessionId: string): Promise<ClassSessi
             id: { $ne: sessionId },
             $or: [{ deviceId: sess.deviceId }, { courseCode: sess.courseCode }],
           },
-          { $set: { isActive: false } }
+          { $set: { isActive: false, endedAt: nowIso } }
         );
       } catch (e) {
         console.warn("Mongo deactivate conflicting sessions error:", e);
       }
     }
-  }
-
-  sess.isActive = willBeActive;
-  if (db) {
-    try {
-      await db.collection("sessions").updateOne({ id: sessionId }, { $set: { isActive: sess.isActive } });
-    } catch (e) {
-      console.warn("Mongo toggle session error:", e);
+    sess.isActive = true;
+    delete sess.endedAt;
+    if (db) {
+      try {
+        await db.collection("sessions").updateOne(
+          { id: sessionId },
+          { $set: { isActive: true }, $unset: { endedAt: "" } }
+        );
+      } catch (e) {
+        console.warn("Mongo activate session error:", e);
+      }
+    }
+  } else {
+    // Ending session: record endedAt timestamp for the 30-min window
+    sess.isActive = false;
+    sess.endedAt = new Date().toISOString();
+    if (db) {
+      try {
+        await db.collection("sessions").updateOne(
+          { id: sessionId },
+          { $set: { isActive: false, endedAt: sess.endedAt } }
+        );
+      } catch (e) {
+        console.warn("Mongo end session error:", e);
+      }
     }
   }
+
   return sess;
+}
+
+export async function endSession(sessionId: string): Promise<ClassSession | null> {
+  return await toggleSessionStatus(sessionId, "end");
+}
+
+export interface DeviceSessionStatus {
+  deviceId: string;
+  hasActiveSession: boolean;
+  courseCode: string;
+  topic: string;
+  status: "active" | "ended" | "idle";
+  displayLine1: string;
+  displayLine2: string;
+  endedAt: string | null;
+  endedMinutesAgo: number | null;
+}
+
+export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSessionStatus> {
+  const sessions = await getAllSessions();
+
+  // 1. Is there an active session currently assigned to this device?
+  const activeSession = sessions.find((s) => s.deviceId === deviceId && s.isActive);
+  if (activeSession) {
+    return {
+      deviceId,
+      hasActiveSession: true,
+      courseCode: activeSession.courseCode,
+      topic: activeSession.topic,
+      status: "active",
+      displayLine1: `${activeSession.courseCode} [LIVE]`,
+      displayLine2: "Place Finger",
+      endedAt: null,
+      endedMinutesAgo: null,
+    };
+  }
+
+  // 2. No active session. Check if any session for this device ended within the last 30 minutes
+  const endedSessions = sessions
+    .filter((s) => s.deviceId === deviceId && !s.isActive && s.endedAt)
+    .sort((a, b) => new Date(b.endedAt!).getTime() - new Date(a.endedAt!).getTime());
+
+  if (endedSessions.length > 0) {
+    const mostRecent = endedSessions[0];
+    const endedTime = new Date(mostRecent.endedAt!).getTime();
+    const minutesAgo = Math.floor((Date.now() - endedTime) / 60000);
+
+    if (minutesAgo >= 0 && minutesAgo < 30) {
+      return {
+        deviceId,
+        hasActiveSession: false,
+        courseCode: mostRecent.courseCode,
+        topic: mostRecent.topic,
+        status: "ended",
+        displayLine1: mostRecent.courseCode,
+        displayLine2: "Class Has Ended",
+        endedAt: mostRecent.endedAt || null,
+        endedMinutesAgo: minutesAgo,
+      };
+    }
+  }
+
+  // 3. Standby / Idle (no session or ended > 30 minutes ago)
+  return {
+    deviceId,
+    hasActiveSession: false,
+    courseCode: "",
+    topic: "",
+    status: "idle",
+    displayLine1: "Scan Fingerprint",
+    displayLine2: `${deviceId} Ready`,
+    endedAt: endedSessions[0]?.endedAt || null,
+    endedMinutesAgo:
+      endedSessions.length > 0
+        ? Math.floor((Date.now() - new Date(endedSessions[0].endedAt!).getTime()) / 60000)
+        : null,
+  };
 }
 
 export async function setPendingEnrollCommand(cmd: PendingEnrollCommand) {

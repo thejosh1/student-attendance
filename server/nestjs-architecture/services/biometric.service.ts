@@ -55,18 +55,48 @@ export class BiometricService {
       };
     }
 
-    const now = dto.timestamp ? new Date(dto.timestamp) : new Date();
+    let now = new Date();
+    if (dto.timestamp) {
+      const parsed = new Date(dto.timestamp.replace(" ", "T"));
+      if (!isNaN(parsed.getTime())) {
+        now = parsed;
+      }
+    }
     const date = now.toLocaleDateString("en-CA");
     const time = timeStr(now);
 
-    // CRITICAL REQUIREMENT: A device cannot be taking attendance for 2 classes at once!
-    // Check which class session is currently active on THIS specific physical terminal.
+    // CRITICAL REQUIREMENT: Terminal-level session routing
     const sessions = await getAllSessions();
-    const activeSessionOnDevice = sessions.find(
+    const norm = (c?: string) => (c || "").trim().toUpperCase();
+
+    let targetSession = sessions.find(
       (sess) => sess.deviceId === deviceId && sess.isActive
     );
 
-    if (!activeSessionOnDevice) {
+    // Fallback ONLY for genuine offline sync queued while lecture was ongoing
+    if (!targetSession && dto.isOfflineSync && dto.timestamp) {
+      targetSession = sessions.find(
+        (sess) =>
+          (sess.deviceId === deviceId || norm(sess.courseCode) === norm(student.className)) &&
+          sess.date === date
+      );
+    }
+
+    if (!targetSession) {
+      const recentEnded = sessions.find(
+        (s) => s.deviceId === deviceId && !s.isActive && s.endedAt
+      );
+      if (recentEnded) {
+        return {
+          action: "session-ended",
+          status: 400,
+          error: `CLASS HAS ENDED: Attendance session for ${recentEnded.courseCode} has officially concluded. Terminal [${deviceId}] is closed.`,
+          student: student.name,
+          activeClass: recentEnded.courseCode,
+          deviceId,
+        };
+      }
+
       return {
         action: "no-session",
         status: 400,
@@ -76,21 +106,20 @@ export class BiometricService {
     }
 
     // Verify student is enrolled in the specific course currently active on this terminal
-    const norm = (c?: string) => (c || "").trim().toUpperCase();
-    if (norm(student.className) !== norm(activeSessionOnDevice.courseCode)) {
+    if (norm(student.className) !== norm(targetSession.courseCode)) {
       return {
         action: "wrong-class",
         status: 400,
-        error: `CLASS MISMATCH: Terminal [${deviceId}] is currently dedicated to ${activeSessionOnDevice.courseCode} (${activeSessionOnDevice.topic}). ${student.name} is enrolled in ${student.className}. A biometric device cannot take attendance for 2 classes at once.`,
+        error: `CLASS MISMATCH: Terminal [${deviceId}] is currently dedicated to ${targetSession.courseCode} (${targetSession.topic}). ${student.name} is enrolled in ${student.className}. A biometric device cannot take attendance for 2 classes at once.`,
         student: student.name,
         admissionNo: student.admissionNo,
         studentClass: student.className,
-        activeClass: activeSessionOnDevice.courseCode,
+        activeClass: targetSession.courseCode,
         deviceId,
       };
     }
 
-    const lateCutoff = activeSessionOnDevice.lateCutoff || "08:15";
+    const lateCutoff = targetSession.lateCutoff || "08:15";
 
     const existingIndex = store.records.findIndex(
       (r) => r.studentId === student.id && r.date === date && (r.courseCode === student.className || !r.courseCode)
@@ -124,7 +153,7 @@ export class BiometricService {
         student: student.name,
         admissionNo: student.admissionNo,
         course: student.className,
-        sessionTopic: activeSessionOnDevice.topic,
+        sessionTopic: targetSession.topic,
         time,
         attendanceStatus: status,
         deviceId,

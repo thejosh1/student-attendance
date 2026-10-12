@@ -35,8 +35,24 @@ export class BiometricController {
     return await sessionService.createSession(dto);
   }
 
-  async toggleSession(sessionId: string) {
-    return await sessionService.toggleSession(sessionId);
+  async toggleSession(sessionId: string, action?: "end" | "activate" | "toggle") {
+    return await sessionService.toggleSession(sessionId, action);
+  }
+
+  async endSession(sessionId: string) {
+    return await sessionService.endSession(sessionId);
+  }
+
+  async getDeviceSessionStatus(deviceId: string) {
+    return await sessionService.getDeviceSessionStatus(deviceId);
+  }
+
+  async deleteSession(sessionId: string) {
+    return await sessionService.deleteSession(sessionId);
+  }
+
+  async deduplicateSessions() {
+    return await sessionService.deduplicateSessions();
   }
 }
 

@@ -103,28 +103,82 @@ export default function LecturerPage() {
     }
   };
 
-  const handleToggleSession = async (sessionId: string) => {
+  const handleToggleSession = async (sessionId: string, action?: "end" | "activate") => {
     try {
       const res = await fetch("/api/sessions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId }),
+        body: JSON.stringify({ sessionId, action }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to toggle");
+      if (!res.ok) throw new Error(data.error || "Failed to update session");
 
       setToast({
         message: data.session.isActive
-          ? `Session activated for ${data.session.courseCode}! Terminal ${data.session.deviceId} is now dedicated exclusively to this class.`
-          : `Session concluded for ${data.session.courseCode}. Terminal ${data.session.deviceId} is now idle.`,
+          ? `Session activated for ${data.session.courseCode}! Hardware terminal ${data.session.deviceId} is now live.`
+          : `Session ended for ${data.session.courseCode}. Hardware terminal ${data.session.deviceId} will show 'Class Has Ended' for 30 minutes.`,
         type: data.session.isActive ? "success" : "info",
+      });
+      setTimeout(() => setToast(null), 4500);
+      await loadData();
+    } catch (err: any) {
+      console.error("Toggle error:", err);
+      setToast({ message: err.message || "Failed to update session", type: "error" });
+      setTimeout(() => setToast(null), 3500);
+    }
+  };
+
+  const handleDeleteSession = async (sessionId: string, course: string) => {
+    if (!confirm(`Are you sure you want to delete the class section for ${course}?`)) return;
+    try {
+      const res = await fetch(`/api/sessions?id=${sessionId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete session");
+
+      setToast({
+        message: `Class section for ${course} deleted successfully.`,
+        type: "success",
       });
       setTimeout(() => setToast(null), 3500);
       await loadData();
     } catch (err: any) {
-      console.error("Toggle error:", err);
+      console.error("Delete error:", err);
+      setToast({ message: err.message || "Failed to delete session", type: "error" });
+      setTimeout(() => setToast(null), 3500);
     }
   };
+
+  const handleDeduplicate = async () => {
+    try {
+      const res = await fetch("/api/sessions?deduplicate=true", { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to clean duplicates");
+
+      setToast({
+        message: "Duplicate class sections pruned! Exactly 1 class section per course retained.",
+        type: "success",
+      });
+      setTimeout(() => setToast(null), 3500);
+      await loadData();
+    } catch (err: any) {
+      console.error("Deduplicate error:", err);
+      setToast({ message: err.message || "Failed to deduplicate", type: "error" });
+      setTimeout(() => setToast(null), 3500);
+    }
+  };
+
+  // Check if multiple sessions exist with the same course code
+  const duplicateCourses = Array.from(
+    sessions
+      .reduce((map, s) => {
+        const k = (s.courseCode || "").trim().toUpperCase();
+        map.set(k, (map.get(k) || 0) + 1);
+        return map;
+      }, new Map<string, number>())
+      .entries()
+  )
+    .filter(([_, count]) => count > 1)
+    .map(([c]) => c);
 
   const selectedDevice = devices.find((d) => d.id === assignedDeviceId);
 
@@ -350,14 +404,25 @@ export default function LecturerPage() {
         {/* List of Class Sessions */}
         <section className="lg:col-span-7">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
               <div>
                 <h2 className="text-base font-bold text-slate-900">Class Attendance Sessions</h2>
-                <p className="text-xs text-slate-500">Live & scheduled course tracking records</p>
+                <p className="text-xs text-slate-500">Live & scheduled course tracking records (strictly 1 section per course)</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                {sessions.length} Configured
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                {duplicateCourses.length > 0 && (
+                  <button
+                    onClick={handleDeduplicate}
+                    title="Prune extra duplicate sessions"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 transition shadow-sm"
+                  >
+                    <span>⚠️ Prune Duplicates ({duplicateCourses.join(", ")})</span>
+                  </button>
+                )}
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+                  {sessions.length} Configured
+                </span>
+              </div>
             </div>
 
             <div className="mt-5 space-y-4">
@@ -414,14 +479,54 @@ export default function LecturerPage() {
                           {sess.isActive ? "LIVE / ACTIVE" : "Concluded"}
                         </span>
 
+                        {sess.isActive ? (
+                          <button
+                            onClick={() => handleToggleSession(sess.id, "end")}
+                            title={`End attendance session for ${sess.courseCode}`}
+                            className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition inline-flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                            End Session
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleToggleSession(sess.id, "activate")}
+                            title={`Activate attendance session for ${sess.courseCode}`}
+                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition inline-flex items-center gap-1.5 shadow-sm"
+                          >
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            Activate
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => handleToggleSession(sess.id)}
-                          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
+                          onClick={() => handleDeleteSession(sess.id, sess.courseCode)}
+                          title={`Delete class section for ${sess.courseCode}`}
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 transition inline-flex items-center gap-1"
                         >
-                          {sess.isActive ? "End Session" : "Activate"}
+                          <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          Delete
                         </button>
                       </div>
                     </div>
+
+                    {!sess.isActive && sess.endedAt && (
+                      <div className="mt-3 text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 flex items-center justify-between">
+                        <span>
+                          Concluded at {new Date(sess.endedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                        </span>
+                        {Math.floor((Date.now() - new Date(sess.endedAt).getTime()) / 60000) < 30 ? (
+                          <span className="font-semibold text-amber-900 inline-flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-amber-600 animate-pulse" />
+                            Terminal [{sess.deviceId}] showing: &ldquo;Class Has Ended&rdquo; (30-min window)
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">Terminal [{sess.deviceId}] in Standby</span>
+                        )}
+                      </div>
+                    )}
 
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-slate-100 text-xs">
                       <div>

@@ -33,15 +33,52 @@ export class SessionService {
     };
   }
 
-  async toggleSession(sessionId: string) {
-    const updated = await toggleSessionStatus(sessionId);
+  async toggleSession(sessionId: string, action?: "end" | "activate" | "toggle") {
+    const updated = await toggleSessionStatus(sessionId, action);
     if (!updated) {
       return { error: "Session not found", status: 404 };
     }
     return {
       success: true,
       session: updated,
-      message: `Session ${updated.courseCode} is now ${updated.isActive ? "ACTIVE" : "CONCLUDED"}.`,
+      message: `Session ${updated.courseCode} is now ${updated.isActive ? "ACTIVE" : "CONCLUDED"}. Terminal ${updated.deviceId} notified.`,
+    };
+  }
+
+  async endSession(sessionId: string) {
+    const { endSession } = await import("@/lib/store");
+    const updated = await endSession(sessionId);
+    if (!updated) {
+      return { error: "Session not found", status: 404 };
+    }
+    return {
+      success: true,
+      session: updated,
+      message: `Session ${updated.courseCode} has officially ended. Terminal ${updated.deviceId} will show 'Class Has Ended' for 30 minutes.`,
+    };
+  }
+
+  async getDeviceSessionStatus(deviceId: string) {
+    const { getDeviceSessionStatus } = await import("@/lib/store");
+    return await getDeviceSessionStatus(deviceId);
+  }
+
+  async deleteSession(sessionId: string) {
+    const { deleteSession } = await import("@/lib/store");
+    await deleteSession(sessionId);
+    return {
+      success: true,
+      message: `Class session section ${sessionId} has been deleted.`,
+    };
+  }
+
+  async deduplicateSessions() {
+    const { deduplicateSessions } = await import("@/lib/store");
+    const sessions = await deduplicateSessions();
+    return {
+      success: true,
+      sessions,
+      message: "Duplicate class sections removed. Exactly 1 session per course retained.",
     };
   }
 }

@@ -38,6 +38,7 @@ export interface ClassSession {
   endTime: string;
   deviceId: string;
   isActive: boolean;
+  endedAt?: string;
 }
 
 export interface AttendanceRecord {

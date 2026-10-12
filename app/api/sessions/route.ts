@@ -52,7 +52,8 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "sessionId required." }, { status: 400 });
     }
 
-    const result = await biometricController.toggleSession(String(body.sessionId));
+    const action = (body?.action as "end" | "activate" | "toggle") || undefined;
+    const result = await biometricController.toggleSession(String(body.sessionId), action);
     if ("error" in result) {
       return NextResponse.json(result, { status: result.status || 400 });
     }
@@ -61,5 +62,34 @@ export async function PATCH(req: Request) {
   } catch (error: any) {
     console.error("Toggle session route error:", error);
     return NextResponse.json({ error: "Failed to toggle session" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+    const dedupe = searchParams.get("deduplicate");
+
+    if (dedupe === "true") {
+      const result = await biometricController.deduplicateSessions();
+      return NextResponse.json(result, { status: 200 });
+    }
+
+    let targetId = id;
+    if (!targetId) {
+      const body = await req.json().catch(() => null);
+      targetId = body?.sessionId || body?.id;
+    }
+
+    if (!targetId) {
+      return NextResponse.json({ error: "Session ID required (?id=... or body.sessionId)" }, { status: 400 });
+    }
+
+    const result = await biometricController.deleteSession(String(targetId));
+    return NextResponse.json(result, { status: 200 });
+  } catch (error: any) {
+    console.error("Delete session route error:", error);
+    return NextResponse.json({ error: "Failed to delete session" }, { status: 500 });
   }
 }

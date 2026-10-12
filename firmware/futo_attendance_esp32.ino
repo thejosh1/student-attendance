@@ -38,9 +38,10 @@ const char* ssid = "CONRAD10";
 const char* password = "ROBOTICS";
 
 // 2. Cloud Server Endpoint (Live Vercel Production URL)
-const char* vercelBaseUrl = "https://student-attendance-peach.vercel.app";
-const char* scanEndpoint   = "/api/biometric/scan";
-const char* enrollEndpoint = "/api/biometric/enroll";
+const char* vercelBaseUrl   = "https://student-attendance-peach.vercel.app";
+const char* scanEndpoint     = "/api/biometric/scan";
+const char* enrollEndpoint   = "/api/biometric/enroll";
+const char* sessionEndpoint  = "/api/biometric/session";
 
 
 // 3. Hardware Unit Identity (Each lecture hall has its assigned unit)
@@ -87,6 +88,32 @@ String enrollName = "";
 String enrollRegNo = "";
 String enrollEmail = "";
 
+/* AUTHORITATIVE CLOUD SESSION STATE */
+// "active" (class ongoing), "ended" (ended within 30 min), "idle" (no class / standby)
+String currentSessionStatus = "idle";
+String currentSessionCourse = "";
+String currentDisplayLine1  = "Scan Fingerprint";
+String currentDisplayLine2  = "";
+unsigned long lastSessionCheck = 0;
+
+/* FORWARD DECLARATIONS */
+void checkFingerprintNormal();
+void checkCloudEnrollmentCommand();
+void checkCloudSessionStatus();
+void syncOfflineLogsToServer();
+void queueOfflineScan(int id, String timestamp);
+void handleRoot();
+void handleDownload();
+void handleClear();
+void handleWipeSD();
+void handleSyncNow();
+void handleEnroll();
+void handleGetLogs();
+String getStudentName(int id);
+int getNextAvailableID();
+String parseJsonString(String json, String key);
+int parseJsonInt(String json, String key);
+
 /* ---------------- SCREEN DISPLAY HELPER ---------------- */
 
 void showMessage(String line1, String line2)
@@ -119,7 +146,16 @@ void triggerMessageState(String line1, String line2)
 void resetScreen()
 {
   if (WiFi.status() == WL_CONNECTED) {
-    showMessage("Scan Fingerprint", String(DEVICE_ID) + " [ONLINE]");
+    if (currentSessionStatus == "active") {
+      String l1 = currentDisplayLine1.length() > 0 ? currentDisplayLine1 : (currentSessionCourse + " [LIVE]");
+      String l2 = currentDisplayLine2.length() > 0 ? currentDisplayLine2 : "Place Finger";
+      showMessage(l1, l2);
+    } else if (currentSessionStatus == "ended") {
+      String l1 = currentSessionCourse.length() > 0 ? currentSessionCourse : "Class Ended";
+      showMessage(l1, "Class Has Ended");
+    } else {
+      showMessage("Scan Fingerprint", String(DEVICE_ID) + " [ONLINE]");
+    }
   } else {
     showMessage("Scan Fingerprint", String(DEVICE_ID) + " [OFFLINE]");
   }
@@ -140,16 +176,44 @@ String getFormattedTimestamp() {
   return "2026-10-12 08:00:00";
 }
 
+/* ---------------- JSON PARSING HELPERS ---------------- */
+
+String parseJsonString(String json, String key) {
+  int k = json.indexOf("\"" + key + "\"");
+  if (k < 0) return "";
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return "";
+  int q1 = json.indexOf('"', colon);
+  if (q1 < 0) return "";
+  int q2 = json.indexOf('"', q1 + 1);
+  if (q2 < 0) return "";
+  return json.substring(q1 + 1, q2);
+}
+
+int parseJsonInt(String json, String key) {
+  int k = json.indexOf("\"" + key + "\"");
+  if (k < 0) return 0;
+  int colon = json.indexOf(':', k);
+  if (colon < 0) return 0;
+  int start = colon + 1;
+  while (start < json.length() && (json.charAt(start) == ' ' || json.charAt(start) == '"')) start++;
+  int end = start;
+  while (end < json.length() && isDigit(json.charAt(end))) end++;
+  return json.substring(start, end).toInt();
+}
+
 /* ---------------- CLOUD API SYNCHRONIZATION ---------------- */
 
 /**
- * Sends biometric scan to Vercel API over HTTPS
- * Handles Device Disabled state, Duplicates, and Check-In/Check-Out
+ * Sends biometric scan to Vercel API over HTTPS.
+ * Server is the authoritative source for student identity and class validity.
  */
-bool sendScanToCloud(int fingerId, String &outMessage) {
+bool sendScanToCloud(int fingerId, String customTimestamp, String &outMessage, String &outStudentName, int &outHttpCode, bool isOffline = false) {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[CLOUD] WiFi not connected. Cannot reach Vercel.");
+    Serial.println("[CLOUD] WiFi not connected. Cannot reach Server.");
     outMessage = "WiFi Disconnected";
+    outStudentName = "";
+    outHttpCode = -1;
     return false;
   }
 
@@ -164,23 +228,32 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
   if (https.begin(client, fullUrl)) {
     https.addHeader("Content-Type", "application/json");
     https.addHeader("X-Device-Id", DEVICE_ID);
-    https.setTimeout(6000);
+    https.setTimeout(7000);
+
+    String ts = customTimestamp.length() > 0 ? customTimestamp : getFormattedTimestamp();
 
     // Build JSON payload
     String payload = "{";
     payload += "\"deviceUserId\":\"" + String(fingerId) + "\",";
     payload += "\"deviceId\":\"" + String(DEVICE_ID) + "\",";
     payload += "\"classId\":\"" + String(ASSIGNED_COURSE) + "\",";
-    payload += "\"timestamp\":\"" + getFormattedTimestamp() + "\",";
+    payload += "\"timestamp\":\"" + ts + "\",";
     payload += "\"method\":\"fingerprint\"";
+    if (isOffline) {
+      payload += ",\"isOfflineSync\":true";
+    }
     payload += "}";
 
     int httpCode = https.POST(payload);
+    outHttpCode = httpCode;
     Serial.printf("[CLOUD] Response Code: %d\n", httpCode);
 
     if (httpCode > 0) {
       String response = https.getString();
       Serial.println("[CLOUD] Payload: " + response);
+
+      // CRITICAL: Extract actual student name registered on the SERVER
+      outStudentName = parseJsonString(response, "student");
 
       if (httpCode == 200) {
         // Success (Check-in, Check-out, or Duplicate)
@@ -194,7 +267,9 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
         https.end();
         return true;
       } else if (httpCode == 400) {
-        if (response.indexOf("wrong-class") > 0 || response.indexOf("CLASS MISMATCH") > 0) {
+        if (response.indexOf("session-ended") > 0 || response.indexOf("CLASS HAS ENDED") > 0) {
+          outMessage = "Class Ended";
+        } else if (response.indexOf("wrong-class") > 0 || response.indexOf("CLASS MISMATCH") > 0) {
           outMessage = "Wrong Class!";
         } else if (response.indexOf("no-session") > 0 || response.indexOf("NO ACTIVE CLASS") > 0) {
           outMessage = "No Class Active";
@@ -204,8 +279,7 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
         https.end();
         return false;
       } else if (httpCode == 403) {
-        // LECTURER DISABLED THIS DEVICE!
-        outMessage = "DEVICE DISABLED";
+        outMessage = "Device Disabled";
         https.end();
         return false;
       } else if (httpCode == 404) {
@@ -216,10 +290,18 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
     } else {
       Serial.printf("[CLOUD] HTTPS failed, error: %s\n", https.errorToString(httpCode).c_str());
       outMessage = "Cloud Unreachable";
+      outStudentName = "";
     }
     https.end();
   }
   return false;
+}
+
+// Backward-compatible wrapper
+bool sendScanToCloud(int fingerId, String &outMessage) {
+  String studentName = "";
+  int code = 0;
+  return sendScanToCloud(fingerId, "", outMessage, studentName, code, false);
 }
 
 /**
@@ -268,30 +350,6 @@ bool sendEnrollToCloud(int fingerId, String name, String regNo, String email) {
 /* ---------------- CLOUD COMMAND POLLING (FOR REAL HARDWARE ENROLLMENT) ---------------- */
 unsigned long lastCommandCheck = 0;
 
-String parseJsonString(String json, String key) {
-  int k = json.indexOf("\"" + key + "\"");
-  if (k < 0) return "";
-  int colon = json.indexOf(':', k);
-  if (colon < 0) return "";
-  int q1 = json.indexOf('"', colon);
-  if (q1 < 0) return "";
-  int q2 = json.indexOf('"', q1 + 1);
-  if (q2 < 0) return "";
-  return json.substring(q1 + 1, q2);
-}
-
-int parseJsonInt(String json, String key) {
-  int k = json.indexOf("\"" + key + "\"");
-  if (k < 0) return 0;
-  int colon = json.indexOf(':', k);
-  if (colon < 0) return 0;
-  int start = colon + 1;
-  while (start < json.length() && (json.charAt(start) == ' ' || json.charAt(start) == '"')) start++;
-  int end = start;
-  while (end < json.length() && isDigit(json.charAt(end))) end++;
-  return json.substring(start, end).toInt();
-}
-
 /**
  * Checks cloud every 2.5s for pending student enrollment commands
  */
@@ -322,6 +380,54 @@ void checkCloudEnrollmentCommand()
         showMessage("Place Finger", enrollName);
         stateTimer = millis();
         currentState = STATE_ENROLL_WAIT_1;
+      }
+    }
+    https.end();
+  }
+}
+
+/* ---------------- CLOUD SESSION POLLING ---------------- */
+
+/**
+ * Checks cloud every 3.5s for authoritative class session state:
+ * - "active": Class is live, displays class name and "Place Finger"
+ * - "ended": Class ended within last 30 minutes, displays class name and "Class Has Ended"
+ * - "idle": No class active or 30 mins elapsed, displays standby
+ */
+void checkCloudSessionStatus()
+{
+  if (WiFi.status() != WL_CONNECTED || currentState != STATE_NORMAL) return;
+  if (millis() - lastSessionCheck < 3500) return;
+  lastSessionCheck = millis();
+
+  WiFiClientSecure client;
+  client.setInsecure();
+  HTTPClient https;
+  String url = String(vercelBaseUrl) + String(sessionEndpoint) + "?deviceId=" + String(DEVICE_ID);
+
+  if (https.begin(client, url)) {
+    https.setTimeout(3500);
+    int httpCode = https.GET();
+    if (httpCode == 200) {
+      String payload = https.getString();
+      String newStatus = parseJsonString(payload, "status");
+      String newCourse = parseJsonString(payload, "courseCode");
+      String newLine1  = parseJsonString(payload, "displayLine1");
+      String newLine2  = parseJsonString(payload, "displayLine2");
+
+      if (newStatus.length() > 0) {
+        bool changed = (newStatus != currentSessionStatus || newCourse != currentSessionCourse);
+        currentSessionStatus = newStatus;
+        currentSessionCourse = newCourse;
+        currentDisplayLine1  = newLine1;
+        currentDisplayLine2  = newLine2;
+
+        if (changed && currentState == STATE_NORMAL) {
+          Serial.printf("[SESSION SYNC] State: %s | Course: %s | Screen: %s / %s\n",
+                        currentSessionStatus.c_str(), currentSessionCourse.c_str(),
+                        currentDisplayLine1.c_str(), currentDisplayLine2.c_str());
+          resetScreen();
+        }
       }
     }
     https.end();
@@ -424,6 +530,8 @@ void setup()
   server.on("/", handleRoot);
   server.on("/download", handleDownload);
   server.on("/clear", handleClear);
+  server.on("/wipe-sd", handleWipeSD);
+  server.on("/sync", handleSyncNow);
   server.on("/enroll", handleEnroll);
   server.on("/getLogs", handleGetLogs);
   server.begin();
@@ -442,6 +550,8 @@ void loop()
     case STATE_NORMAL:
       if (hasFinger) checkFingerprintNormal();
       checkCloudEnrollmentCommand();
+      checkCloudSessionStatus();
+      syncOfflineLogsToServer();
       break;
 
     case STATE_ENROLL_WAIT_1:
@@ -527,34 +637,158 @@ void checkFingerprintNormal()
     lastID = id;
     lastScan = millis();
 
-    String name = getStudentName(id);
-    Serial.printf("[SCAN] Finger Match Found! Template ID: %d | Local Name: %s\n", id, name.c_str());
+    Serial.printf("[SCAN] Finger Match Found on Optical Sensor! Template Slot: %d\n", id);
 
-    // 1. ATTEMPT CLOUD SYNC WITH VERCEL API
-    String cloudResult = "";
-    bool cloudSuccess = sendScanToCloud(id, cloudResult);
+    // If terminal is informed that class has ended:
+    if (currentSessionStatus == "ended") {
+      Serial.println("[SCAN] Attendance session concluded. Terminal rejecting scan.");
+      triggerMessageState("Class Has Ended", "Scan Rejected");
+      return;
+    }
 
-    if (cloudSuccess) {
-      triggerMessageState(name, cloudResult);
-      logAttendance(id, name, "CLOUD_SYNCED");
-    } else {
-      if (cloudResult == "DEVICE DISABLED") {
-        // LECTURER DISABLED THIS DEVICE!
-        triggerMessageState("ACCESS BLOCKED", "Device Disabled");
-      } else if (cloudResult == "Wrong Class!" || cloudResult == "No Class Active" || cloudResult == "Scan Rejected") {
-        // TERMINAL ASSIGNED TO DIFFERENT CLASS OR NO SESSION ACTIVE
-        triggerMessageState("ACCESS REJECTED", cloudResult);
-      } else if (cloudResult == "Not Enrolled") {
-        triggerMessageState("ACCESS REJECTED", "Not Enrolled");
+    // CRITICAL ARCHITECTURE RULE:
+    // What is stored on the SERVER is what the processor checks, NOT the SD card!
+    // The SD card is strictly for offline fallback storage.
+    if (WiFi.status() == WL_CONNECTED) {
+      String outMessage = "";
+      String serverStudentName = "";
+      int httpCode = 0;
+      bool cloudSuccess = sendScanToCloud(id, "", outMessage, serverStudentName, httpCode, false);
+
+      if (cloudSuccess) {
+        // ALWAYS display the student name stored on the SERVER!
+        String displayName = serverStudentName.length() > 0 ? serverStudentName : "Student #" + String(id);
+        Serial.printf("[SCAN] Verified by Server: %s -> %s\n", displayName.c_str(), outMessage.c_str());
+        triggerMessageState(displayName, outMessage);
       } else {
-        // FALLBACK TO OFFLINE SD STORAGE
-        triggerMessageState(name, "Saved Offline");
-        logAttendance(id, name, "OFFLINE_CACHED");
+        if (httpCode == 404) {
+          Serial.printf("[SCAN] Slot #%d rejected by server: Template not enrolled in server database.\n", id);
+          triggerMessageState("ACCESS REJECTED", "Not Enrolled");
+        } else if (httpCode == 403) {
+          Serial.println("[SCAN] Rejected by server: Terminal node is disabled by lecturer.");
+          triggerMessageState("ACCESS BLOCKED", "Device Disabled");
+        } else if (httpCode == 400) {
+          if (outMessage == "Class Ended") {
+            triggerMessageState("Class Has Ended", "Scan Rejected");
+          } else {
+            String displayHeader = serverStudentName.length() > 0 ? serverStudentName : "ACCESS REJECTED";
+            Serial.printf("[SCAN] Server rejected scan: %s\n", outMessage.c_str());
+            triggerMessageState(displayHeader, outMessage);
+          }
+        } else {
+          // Cloud connection timeout or error: Buffer to SD card offline queue
+          Serial.println("[SCAN] Cloud communication failed. Caching scan to SD offline queue.");
+          queueOfflineScan(id, getFormattedTimestamp());
+          triggerMessageState("Offline Cached", "Slot #" + String(id));
+        }
       }
+    } else {
+      // TRUE OFFLINE MODE: Save to SD card queue
+      Serial.println("[SCAN] Offline Mode (WiFi down). Buffering scan to SD card offline queue.");
+      queueOfflineScan(id, getFormattedTimestamp());
+      triggerMessageState("Saved Offline", "Slot #" + String(id));
     }
   } else {
     triggerMessageState("ACCESS DENIED", "Not Recognized");
   }
+}
+
+/* ---------------- OFFLINE STORAGE & AUTO-SYNC ---------------- */
+
+void queueOfflineScan(int id, String timestamp)
+{
+  if (!hasSD) {
+    Serial.println("[SD] Warning: No SD card detected. Cannot cache offline scan.");
+    return;
+  }
+
+  File file = SD.open("/offline_queue.csv", FILE_APPEND);
+  if (file) {
+    file.print(id);
+    file.print(",");
+    file.print(timestamp);
+    file.print(",");
+    file.print(DEVICE_ID);
+    file.print(",");
+    file.println(ASSIGNED_COURSE);
+    file.close();
+    Serial.printf("[SD OFFLINE] Cached Slot #%d to /offline_queue.csv (%s)\n", id, timestamp.c_str());
+  } else {
+    Serial.println("[SD] Failed to open /offline_queue.csv for append.");
+  }
+}
+
+unsigned long lastSyncCheck = 0;
+
+/**
+ * Pushes cached offline logs from SD card to server when internet is active.
+ * Once successfully persisted, WIPES the SD card offline memory buffer!
+ */
+void syncOfflineLogsToServer()
+{
+  if (WiFi.status() != WL_CONNECTED || !hasSD || currentState != STATE_NORMAL) return;
+  if (millis() - lastSyncCheck < 10000) return; // Check every 10 seconds
+  lastSyncCheck = millis();
+
+  if (!SD.exists("/offline_queue.csv")) return;
+
+  File file = SD.open("/offline_queue.csv", FILE_READ);
+  if (!file) return;
+
+  if (file.size() == 0) {
+    file.close();
+    SD.remove("/offline_queue.csv");
+    return;
+  }
+
+  Serial.println("[AUTO-SYNC] Offline records detected on SD card. Pushing to server...");
+
+  String lines[50];
+  int count = 0;
+  while (file.available() && count < 50) {
+    String l = file.readStringUntil('\n');
+    l.trim();
+    if (l.length() > 0) {
+      lines[count++] = l;
+    }
+  }
+  file.close();
+
+  if (count == 0) {
+    SD.remove("/offline_queue.csv");
+    return;
+  }
+
+  int successCount = 0;
+  for (int i = 0; i < count; i++) {
+    String l = lines[i];
+    int c1 = l.indexOf(',');
+    if (c1 < 0) continue;
+    int c2 = l.indexOf(',', c1 + 1);
+    if (c2 < 0) continue;
+
+    int slotId = l.substring(0, c1).toInt();
+    String ts = l.substring(c1 + 1, c2);
+
+    String outMsg = "";
+    String serverName = "";
+    int code = 0;
+    bool ok = sendScanToCloud(slotId, ts, outMsg, serverName, code, true);
+
+    if (ok || code == 200 || code == 400) {
+      // 200: Successfully recorded; 400: Handled/duplicate
+      successCount++;
+    } else {
+      Serial.printf("[AUTO-SYNC] Network dropout during sync at slot #%d (Code %d). Stopping sync batch.\n", slotId, code);
+      return; // Stop and retry on next cycle without wiping
+    }
+    delay(200);
+  }
+
+  // REQUIREMENT: "pushes its log and wipes its memory after successfully persisting"
+  SD.remove("/offline_queue.csv");
+  Serial.printf("[AUTO-SYNC] Successfully persisted %d offline records to server. SD offline queue wiped clean!\n", successCount);
+  triggerMessageState("SD Synced", String(successCount) + " Logs Wiped");
 }
 
 /* ---------------- DATA HELPERS ---------------- */
@@ -582,31 +816,6 @@ String getStudentName(int id)
   }
   file.close();
   return "Student-" + String(id);
-}
-
-void logAttendance(int id, String name, String syncStatus)
-{
-  if (!hasSD) {
-    Serial.println("[SD] Skipping SD write - no card.");
-    return;
-  }
-
-  String timeStamp = getFormattedTimestamp();
-
-  File file = SD.open("/logs.csv", FILE_APPEND);
-  if (file) {
-    file.print(id);
-    file.print(",");
-    file.print(name);
-    file.print(",");
-    file.print(timeStamp);
-    file.print(",");
-    file.print(DEVICE_ID);
-    file.print(",");
-    file.println(syncStatus);
-    file.close();
-    Serial.println("[SD] Logged to SD card successfully.");
-  }
 }
 
 int getNextAvailableID()
@@ -637,16 +846,40 @@ void handleRoot()
   html += "<style>body{font-family:Arial;background:#f4f6f9;margin:0;padding:20px;}.container{max-width:800px;margin:auto;}";
   html += ".card{background:white;padding:20px;margin-bottom:20px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);}";
   html += ".badge{padding:4px 8px;border-radius:4px;font-size:12px;font-weight:bold;background:#10b981;color:white;}";
-  html += ".btn{padding:10px 15px;background:#059669;color:white;text-decoration:none;border-radius:6px;display:inline-block;margin-right:10px;}";
+  html += ".btn{padding:10px 15px;background:#059669;color:white;text-decoration:none;border-radius:6px;display:inline-block;margin-right:10px;margin-bottom:8px;}";
+  html += ".btn-danger{background:#dc2626;}";
+  html += ".btn-blue{background:#2563eb;}";
   html += "</style></head><body><div class='container'>";
   html += "<div class='card'><h2>ESP32 Biometric Terminal (" + String(DEVICE_ID) + ")</h2>";
   html += "<p>Assigned Course: <b>" + String(ASSIGNED_COURSE) + "</b> | Cloud: <b>" + String(vercelBaseUrl) + "</b></p>";
   html += "<p>Status: <span class='badge'>ONLINE</span> | IP: " + WiFi.localIP().toString() + "</p>";
   html += "</div>";
-  html += "<div class='card'><a class='btn' href='/download'>Download SD CSV</a>";
-  html += "<a class='btn' href='" + String(vercelBaseUrl) + "' target='_blank'>Go to Vercel Cloud Dashboard</a></div>";
+  html += "<div class='card'><h3>Terminal Utilities</h3>";
+  html += "<a class='btn btn-blue' href='/sync'>Push Offline Logs Now</a>";
+  html += "<a class='btn' href='/download'>Download SD CSV</a>";
+  html += "<a class='btn btn-danger' href='/wipe-sd' onclick=\"return confirm('Wipe SD offline files?')\">Wipe SD Cache</a>";
+  html += "<a class='btn btn-danger' href='/clear' onclick=\"return confirm('Wipe sensor templates and SD card?')\">Factory Reset Sensor & SD</a>";
+  html += "<br><a class='btn' href='" + String(vercelBaseUrl) + "' target='_blank'>Go to Cloud Dashboard</a></div>";
   html += "</div></body></html>";
   server.send(200, "text/html", html);
+}
+
+void handleSyncNow()
+{
+  lastSyncCheck = 0;
+  syncOfflineLogsToServer();
+  server.send(200, "text/html", "<html><body style='font-family:Arial;padding:20px;'><h2>Offline Sync Triggered!</h2><p>Check the serial monitor or LCD screen. Any pending offline records have been pushed and the SD offline buffer wiped.</p><a href='/'>Back to Terminal</a></body></html>");
+}
+
+void handleWipeSD()
+{
+  if (hasSD) {
+    SD.remove("/logs.csv");
+    SD.remove("/students.csv");
+    SD.remove("/offline_queue.csv");
+  }
+  showMessage("SD Buffer Wiped", "Clean State");
+  server.send(200, "text/html", "<html><body style='font-family:Arial;padding:20px;'><h2>SD Card Memory Wiped Clean!</h2><p>All cached offline logs and outdated CSV rosters have been deleted from the SD card. AS608 optical sensor templates remain intact.</p><a href='/'>Back to Terminal</a></body></html>");
 }
 
 void handleGetLogs()
@@ -691,6 +924,7 @@ void handleClear()
   if (hasSD) {
     SD.remove("/logs.csv");
     SD.remove("/students.csv");
+    SD.remove("/offline_queue.csv");
     File file = SD.open("/logs.csv", FILE_WRITE);
     file.println("ID,Name,Timestamp,DeviceID,Status");
     file.close();
