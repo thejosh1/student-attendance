@@ -59,15 +59,41 @@ export class BiometricService {
     const date = now.toLocaleDateString("en-CA");
     const time = timeStr(now);
 
-    // Check active session for late cutoff
+    // CRITICAL REQUIREMENT: A device cannot be taking attendance for 2 classes at once!
+    // Check which class session is currently active on THIS specific physical terminal.
     const sessions = await getAllSessions();
-    const activeSession = sessions.find(
-      (sess) => sess.courseCode === student.className && sess.isActive
+    const activeSessionOnDevice = sessions.find(
+      (sess) => sess.deviceId === deviceId && sess.isActive
     );
-    const lateCutoff = activeSession?.lateCutoff || "08:15";
+
+    if (!activeSessionOnDevice) {
+      return {
+        action: "no-session",
+        status: 400,
+        error: `NO ACTIVE CLASS: Terminal [${deviceId}] currently has no active attendance session scheduled. The lecturer must activate a session from the Lecturer Sessions portal.`,
+        deviceId,
+      };
+    }
+
+    // Verify student is enrolled in the specific course currently active on this terminal
+    const norm = (c?: string) => (c || "").trim().toUpperCase();
+    if (norm(student.className) !== norm(activeSessionOnDevice.courseCode)) {
+      return {
+        action: "wrong-class",
+        status: 400,
+        error: `CLASS MISMATCH: Terminal [${deviceId}] is currently dedicated to ${activeSessionOnDevice.courseCode} (${activeSessionOnDevice.topic}). ${student.name} is enrolled in ${student.className}. A biometric device cannot take attendance for 2 classes at once.`,
+        student: student.name,
+        admissionNo: student.admissionNo,
+        studentClass: student.className,
+        activeClass: activeSessionOnDevice.courseCode,
+        deviceId,
+      };
+    }
+
+    const lateCutoff = activeSessionOnDevice.lateCutoff || "08:15";
 
     const existingIndex = store.records.findIndex(
-      (r) => r.studentId === student.id && r.date === date
+      (r) => r.studentId === student.id && r.date === date && (r.courseCode === student.className || !r.courseCode)
     );
 
     if (existingIndex === -1) {
@@ -98,10 +124,11 @@ export class BiometricService {
         student: student.name,
         admissionNo: student.admissionNo,
         course: student.className,
+        sessionTopic: activeSessionOnDevice.topic,
         time,
         attendanceStatus: status,
         deviceId,
-        message: `Welcome ${student.name}! Checked in at ${time} (${status.toUpperCase()}).`,
+        message: `Welcome ${student.name}! Checked in for ${student.className} at ${time} (${status.toUpperCase()}).`,
       };
     }
 

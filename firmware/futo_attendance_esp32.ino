@@ -193,6 +193,16 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
         }
         https.end();
         return true;
+      } else if (httpCode == 400) {
+        if (response.indexOf("wrong-class") > 0 || response.indexOf("CLASS MISMATCH") > 0) {
+          outMessage = "Wrong Class!";
+        } else if (response.indexOf("no-session") > 0 || response.indexOf("NO ACTIVE CLASS") > 0) {
+          outMessage = "No Class Active";
+        } else {
+          outMessage = "Scan Rejected";
+        }
+        https.end();
+        return false;
       } else if (httpCode == 403) {
         // LECTURER DISABLED THIS DEVICE!
         outMessage = "DEVICE DISABLED";
@@ -531,6 +541,11 @@ void checkFingerprintNormal()
       if (cloudResult == "DEVICE DISABLED") {
         // LECTURER DISABLED THIS DEVICE!
         triggerMessageState("ACCESS BLOCKED", "Device Disabled");
+      } else if (cloudResult == "Wrong Class!" || cloudResult == "No Class Active" || cloudResult == "Scan Rejected") {
+        // TERMINAL ASSIGNED TO DIFFERENT CLASS OR NO SESSION ACTIVE
+        triggerMessageState("ACCESS REJECTED", cloudResult);
+      } else if (cloudResult == "Not Enrolled") {
+        triggerMessageState("ACCESS REJECTED", "Not Enrolled");
       } else {
         // FALLBACK TO OFFLINE SD STORAGE
         triggerMessageState(name, "Saved Offline");

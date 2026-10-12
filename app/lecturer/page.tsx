@@ -114,10 +114,12 @@ export default function LecturerPage() {
       if (!res.ok) throw new Error(data.error || "Failed to toggle");
 
       setToast({
-        message: `Session status updated: ${data.session.courseCode} is ${data.session.isActive ? "ACTIVE" : "CONCLUDED"}`,
-        type: "info",
+        message: data.session.isActive
+          ? `Session activated for ${data.session.courseCode}! Terminal ${data.session.deviceId} is now dedicated exclusively to this class.`
+          : `Session concluded for ${data.session.courseCode}. Terminal ${data.session.deviceId} is now idle.`,
+        type: data.session.isActive ? "success" : "info",
       });
-      setTimeout(() => setToast(null), 3000);
+      setTimeout(() => setToast(null), 3500);
       await loadData();
     } catch (err: any) {
       console.error("Toggle error:", err);
@@ -311,6 +313,26 @@ export default function LecturerPage() {
                     )}
                   </div>
                 )}
+
+                {/* Single Class per Terminal Notice */}
+                {(() => {
+                  const currentActive = sessions.find((s) => s.deviceId === assignedDeviceId && s.isActive);
+                  if (currentActive) {
+                    return (
+                      <div className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
+                        <span className="font-bold flex-shrink-0">⚠️ Notice:</span>
+                        <span>
+                          <strong>{assignedDeviceId}</strong> is currently taking attendance for <strong>{currentActive.courseCode}</strong>. Activating this session will conclude {currentActive.courseCode} (strictly 1 class per terminal).
+                        </span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="mt-2.5 rounded-lg border border-slate-200 bg-white p-2 text-[11px] text-slate-500">
+                      🔒 Terminal Policy: Each physical fingerprint scanner is dedicated to exactly 1 active class at a time.
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Submit Button */}

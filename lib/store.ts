@@ -267,8 +267,28 @@ export async function getAllSessions(): Promise<ClassSession[]> {
 }
 
 export async function addSession(session: ClassSession): Promise<ClassSession> {
-  store.sessions.unshift(session);
   const db = await getDb();
+  if (session.isActive) {
+    // A fingerprint terminal CANNOT be taking attendance for 2 classes at once!
+    // Also, a course can only have one active session slot at once!
+    for (const existing of store.sessions) {
+      if (existing.deviceId === session.deviceId || existing.courseCode === session.courseCode) {
+        existing.isActive = false;
+      }
+    }
+    if (db) {
+      try {
+        await db.collection("sessions").updateMany(
+          { $or: [{ deviceId: session.deviceId }, { courseCode: session.courseCode }] },
+          { $set: { isActive: false } }
+        );
+      } catch (e) {
+        console.warn("Mongo deactivate existing sessions error:", e);
+      }
+    }
+  }
+
+  store.sessions.unshift(session);
   if (db) {
     try {
       await db.collection("sessions").insertOne({ ...session } as any);
@@ -281,18 +301,42 @@ export async function addSession(session: ClassSession): Promise<ClassSession> {
 
 export async function toggleSessionStatus(sessionId: string): Promise<ClassSession | null> {
   const sess = store.sessions.find((s) => s.id === sessionId);
-  if (sess) {
-    sess.isActive = !sess.isActive;
-  }
+  if (!sess) return null;
+
   const db = await getDb();
+  const willBeActive = !sess.isActive;
+
+  if (willBeActive) {
+    // Activating this session: deactivate all other sessions on this device and for this course!
+    for (const other of store.sessions) {
+      if (other.id !== sessionId && (other.deviceId === sess.deviceId || other.courseCode === sess.courseCode)) {
+        other.isActive = false;
+      }
+    }
+    if (db) {
+      try {
+        await db.collection("sessions").updateMany(
+          {
+            id: { $ne: sessionId },
+            $or: [{ deviceId: sess.deviceId }, { courseCode: sess.courseCode }],
+          },
+          { $set: { isActive: false } }
+        );
+      } catch (e) {
+        console.warn("Mongo deactivate conflicting sessions error:", e);
+      }
+    }
+  }
+
+  sess.isActive = willBeActive;
   if (db) {
     try {
-      await db.collection("sessions").updateOne({ id: sessionId }, { $set: { isActive: sess?.isActive } });
+      await db.collection("sessions").updateOne({ id: sessionId }, { $set: { isActive: sess.isActive } });
     } catch (e) {
       console.warn("Mongo toggle session error:", e);
     }
   }
-  return sess || null;
+  return sess;
 }
 
 export async function setPendingEnrollCommand(cmd: PendingEnrollCommand) {
