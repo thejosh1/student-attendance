@@ -61,6 +61,28 @@ export interface AttendanceRow extends Student {
 
 export const LATE_AFTER = "08:15";
 
+export const addMinutesToTime = (timeStr: string, minutesToAdd: number = 15): string => {
+  if (!timeStr) return "08:15";
+  const [h, m] = timeStr.split(":").map(Number);
+  if (isNaN(h) || isNaN(m)) return timeStr;
+  const totalMins = (h * 60 + m + minutesToAdd) % (24 * 60);
+  const newH = Math.floor(totalMins / 60);
+  const newM = totalMins % 60;
+  return `${String(newH).padStart(2, "0")}:${String(newM).padStart(2, "0")}`;
+};
+
+export const formatTime12 = (timeStr: string): string => {
+  if (!timeStr) return "";
+  const parts = timeStr.split(":");
+  if (parts.length < 2) return timeStr;
+  const h = parseInt(parts[0], 10);
+  const m = parts[1];
+  if (isNaN(h)) return timeStr;
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, "0")}:${m} ${ampm}`;
+};
+
 /* Default 4 Biometric Devices: exactly 1 enabled, 3 disabled as specified */
 export const initialDevices: BiometricDevice[] = [
   {

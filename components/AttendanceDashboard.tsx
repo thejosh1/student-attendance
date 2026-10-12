@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { BiometricDevice, ClassSession, LATE_AFTER, classes, type AttendanceRow, type Status } from "@/lib/data";
+import { BiometricDevice, ClassSession, LATE_AFTER, classes, formatTime12, type AttendanceRow, type Status } from "@/lib/data";
 
 const STATUS_STYLES: Record<Status, { badge: string; dot: string; label: string }> = {
   present: {
@@ -155,7 +155,7 @@ export default function AttendanceDashboard() {
                 W.O.R.C — Wireless Operations for Real-time Check-in
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-                Session Date: <span className="font-semibold text-slate-700">{date || "Today"}</span> · Late Cutoff: <span className="font-semibold text-slate-700">{LATE_AFTER} AM</span> · Active Session: <span className="font-semibold text-emerald-700">{activeSession ? activeSession.topic : "General Lecture"}</span>
+                Session Date: <span className="font-semibold text-slate-700">{date || "Today"}</span> · Late Cutoff: <span className="font-semibold text-slate-700">{activeSession ? formatTime12(activeSession.lateCutoff) : `${LATE_AFTER} AM`}</span> · Active Session: <span className="font-semibold text-emerald-700">{activeSession ? activeSession.topic : "General Lecture"}</span>
               </p>
             </div>
           </div>

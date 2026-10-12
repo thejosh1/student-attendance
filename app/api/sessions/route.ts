@@ -23,13 +23,15 @@ export async function POST(req: Request) {
       );
     }
 
+    const startTime = body.startTime || "08:00";
+    const { addMinutesToTime } = await import("@/lib/data");
     const result = await biometricController.createSession({
       courseCode: String(body.courseCode),
       topic: String(body.topic),
       lecturerName: body.lecturerName || "Lecturer in Charge",
       date: body.date,
-      startTime: body.startTime || "08:00",
-      lateCutoff: body.lateCutoff || "08:15",
+      startTime,
+      lateCutoff: body.lateCutoff || addMinutesToTime(startTime, 15),
       endTime: body.endTime || "10:00",
       deviceId: body.deviceId || "DEV-FUTO-01",
     });
@@ -52,7 +54,13 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: "sessionId required." }, { status: 400 });
     }
 
-    const action = (body?.action as "end" | "activate" | "toggle") || undefined;
+    const action = (body?.action as "end" | "activate" | "toggle") || "end";
+    if (action === "activate") {
+      return NextResponse.json(
+        { error: "Ended classes cannot be reactivated. Please create a new session." },
+        { status: 400 }
+      );
+    }
     const result = await biometricController.toggleSession(String(body.sessionId), action);
     if ("error" in result) {
       return NextResponse.json(result, { status: result.status || 400 });

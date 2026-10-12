@@ -2,6 +2,7 @@ import {
   AttendanceRecord,
   AttendanceRow,
   Student,
+  addMinutesToTime,
   statusFor,
   timeStr,
   todayStr,
@@ -134,7 +135,7 @@ export class BiometricService {
       };
     }
 
-    const lateCutoff = targetSession.lateCutoff || "08:15";
+    const lateCutoff = targetSession.lateCutoff || (targetSession.startTime ? addMinutesToTime(targetSession.startTime, 15) : "08:15");
 
     const existingIndex = store.records.findIndex(
       (r) => r.studentId === student.id && r.date === date && (r.courseCode === student.className || !r.courseCode)
@@ -276,7 +277,7 @@ export class BiometricService {
       const isSessionActive = Boolean(
         (sessionForCourse && sessionForCourse.isActive) || (!sessionForCourse && hasAnyActiveSession)
       );
-      const lateCutoff = sessionForCourse?.lateCutoff || "08:15";
+      const lateCutoff = sessionForCourse?.lateCutoff || (sessionForCourse?.startTime ? addMinutesToTime(sessionForCourse.startTime, 15) : "08:15");
 
       return {
         ...s,

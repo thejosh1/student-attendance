@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { BiometricDevice, ClassSession, classes } from "@/lib/data";
+import { BiometricDevice, ClassSession, classes, addMinutesToTime, formatTime12 } from "@/lib/data";
 import LecturerGate from "@/components/LecturerGate";
 
 export default function LecturerPage() {
@@ -15,6 +15,7 @@ export default function LecturerPage() {
   const [lecturerName, setLecturerName] = useState("Engr. Prof. K. C. Okafor");
   const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [startTime, setStartTime] = useState("08:00");
+  const [graceMinutes, setGraceMinutes] = useState(15);
   const [lateCutoff, setLateCutoff] = useState("08:15");
   const [endTime, setEndTime] = useState("10:00");
   const [assignedDeviceId, setAssignedDeviceId] = useState("DEV-FUTO-01");
@@ -58,11 +59,39 @@ export default function LecturerPage() {
     setAssignedDeviceId(mappedDev);
   };
 
+  const handleStartTimeChange = (newStart: string) => {
+    setStartTime(newStart);
+    // Late cutoff is dynamically set after the session start time
+    const mins = graceMinutes > 0 ? graceMinutes : 15;
+    const newCutoff = addMinutesToTime(newStart, mins);
+    setLateCutoff(newCutoff);
+    if (endTime <= newStart) {
+      setEndTime(addMinutesToTime(newStart, 120));
+    }
+  };
+
+  const handleGraceChange = (mins: number) => {
+    setGraceMinutes(mins);
+    setLateCutoff(addMinutesToTime(startTime, mins));
+  };
+
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) {
       setToast({ message: "Please specify the lecture topic/module title.", type: "error" });
       setTimeout(() => setToast(null), 3000);
+      return;
+    }
+
+    if (lateCutoff <= startTime) {
+      setToast({ message: "Late cutoff must be after the session start time.", type: "error" });
+      setTimeout(() => setToast(null), 3500);
+      return;
+    }
+
+    if (endTime <= startTime) {
+      setToast({ message: "End time must be after the session start time.", type: "error" });
+      setTimeout(() => setToast(null), 3500);
       return;
     }
 
@@ -103,27 +132,26 @@ export default function LecturerPage() {
     }
   };
 
-  const handleToggleSession = async (sessionId: string, action?: "end" | "activate") => {
+  const handleEndSession = async (sessionId: string, courseCode: string) => {
+    if (!confirm(`End class session for ${courseCode}? Once ended, this class cannot be reactivated.`)) return;
     try {
       const res = await fetch("/api/sessions", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId, action }),
+        body: JSON.stringify({ sessionId, action: "end" }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to update session");
+      if (!res.ok) throw new Error(data.error || "Failed to end session");
 
       setToast({
-        message: data.session.isActive
-          ? `Session activated for ${data.session.courseCode}! Hardware terminal ${data.session.deviceId} is now live.`
-          : `Session ended for ${data.session.courseCode}. Hardware terminal ${data.session.deviceId} will show 'Class Has Ended' for 30 minutes.`,
-        type: data.session.isActive ? "success" : "info",
+        message: `Session ended for ${data.session.courseCode}. Hardware terminal ${data.session.deviceId} will show 'Class Has Ended' for 30 minutes.`,
+        type: "info",
       });
       setTimeout(() => setToast(null), 4500);
       await loadData();
     } catch (err: any) {
-      console.error("Toggle error:", err);
-      setToast({ message: err.message || "Failed to update session", type: "error" });
+      console.error("End session error:", err);
+      setToast({ message: err.message || "Failed to end session", type: "error" });
       setTimeout(() => setToast(null), 3500);
     }
   };
@@ -300,26 +328,57 @@ export default function LecturerPage() {
                   <input
                     type="time"
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
+                    onChange={(e) => handleStartTimeChange(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 shadow-sm outline-none"
                   />
                 </div>
               </div>
 
               {/* Late Cutoff & End Time */}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Late Cutoff (Threshold)
-                  </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-amber-900">
+                      Late Cutoff (Threshold)
+                    </label>
+                    <span className="text-[11px] font-mono font-bold text-amber-700">
+                      {formatTime12(lateCutoff)}
+                    </span>
+                  </div>
+
+                  {/* Grace period selector buttons */}
+                  <div className="mt-2 flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] font-semibold text-slate-500">Grace:</span>
+                    {[10, 15, 20, 30].map((mins) => (
+                      <button
+                        key={mins}
+                        type="button"
+                        onClick={() => handleGraceChange(mins)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                          graceMinutes === mins && lateCutoff === addMinutesToTime(startTime, mins)
+                            ? "bg-amber-600 text-white shadow-sm"
+                            : "bg-white text-slate-700 border border-slate-200 hover:bg-amber-100"
+                        }`}
+                      >
+                        +{mins}m ({addMinutesToTime(startTime, mins)})
+                      </button>
+                    ))}
+                  </div>
+
                   <input
                     type="time"
                     value={lateCutoff}
-                    onChange={(e) => setLateCutoff(e.target.value)}
-                    className="mt-1 w-full rounded-xl border border-amber-300 bg-amber-50/40 px-3 py-2 text-xs font-mono text-amber-900 shadow-sm outline-none"
+                    onChange={(e) => {
+                      setLateCutoff(e.target.value);
+                      setGraceMinutes(-1);
+                    }}
+                    className="mt-2 w-full rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-mono font-semibold text-amber-900 shadow-sm outline-none"
                   />
-                  <p className="mt-1 text-[10px] text-slate-500">Scans after this are marked Late</p>
+                  <p className="mt-1 text-[10px] text-amber-800">
+                    Threshold after start ({startTime}). Scans after {lateCutoff} ({formatTime12(lateCutoff)}) are marked Late.
+                  </p>
                 </div>
+
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
                     End Time
@@ -330,6 +389,9 @@ export default function LecturerPage() {
                     onChange={(e) => setEndTime(e.target.value)}
                     className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono text-slate-900 shadow-sm outline-none"
                   />
+                  <p className="mt-1 text-[10px] text-slate-500">
+                    Session automatically concludes and hardware terminates active scans at this time.
+                  </p>
                 </div>
               </div>
 
@@ -479,23 +541,14 @@ export default function LecturerPage() {
                           {sess.isActive ? "LIVE / ACTIVE" : "Concluded"}
                         </span>
 
-                        {sess.isActive ? (
+                        {sess.isActive && (
                           <button
-                            onClick={() => handleToggleSession(sess.id, "end")}
+                            onClick={() => handleEndSession(sess.id, sess.courseCode)}
                             title={`End attendance session for ${sess.courseCode}`}
                             className="rounded-lg border border-rose-300 bg-rose-50 px-3 py-1 text-xs font-bold text-rose-700 hover:bg-rose-100 transition inline-flex items-center gap-1.5 shadow-sm"
                           >
                             <span className="h-2 w-2 rounded-full bg-rose-500" />
                             End Session
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleToggleSession(sess.id, "activate")}
-                            title={`Activate attendance session for ${sess.courseCode}`}
-                            className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition inline-flex items-center gap-1.5 shadow-sm"
-                          >
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                            Activate
                           </button>
                         )}
 
@@ -542,7 +595,7 @@ export default function LecturerPage() {
                       <div>
                         <span className="text-slate-400 block">Late Cutoff</span>
                         <span className="font-mono font-semibold text-amber-700">
-                          After {sess.lateCutoff} AM
+                          After {formatTime12(sess.lateCutoff || addMinutesToTime(sess.startTime, 15))}
                         </span>
                       </div>
                       <div>

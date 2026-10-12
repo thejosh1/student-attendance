@@ -429,62 +429,23 @@ export async function toggleSessionStatus(
   }
   if (!sess) return null;
 
-  let willBeActive: boolean;
-  if (action === "end") {
-    willBeActive = false;
-  } else if (action === "activate") {
-    willBeActive = true;
-  } else {
-    willBeActive = !sess.isActive;
+  // An ended class cannot be reactivated under any circumstance
+  if (!sess.isActive || action === "activate") {
+    console.warn(`[Store] Blocked attempt to reactivate ended class: ${sess.courseCode} (${sessionId})`);
+    return null;
   }
 
-  if (willBeActive) {
-    // Activating this session: deactivate all other sessions on this device and for this course!
-    const nowIso = new Date().toISOString();
-    for (const other of store.sessions) {
-      if (other.id !== sessionId && (other.deviceId === sess.deviceId || other.courseCode === sess.courseCode)) {
-        other.isActive = false;
-        other.endedAt = nowIso;
-      }
-    }
-    if (db) {
-      try {
-        await db.collection("sessions").updateMany(
-          {
-            id: { $ne: sessionId },
-            $or: [{ deviceId: sess.deviceId }, { courseCode: sess.courseCode }],
-          },
-          { $set: { isActive: false, endedAt: nowIso } }
-        );
-      } catch (e) {
-        console.warn("Mongo deactivate conflicting sessions error:", e);
-      }
-    }
-    sess.isActive = true;
-    delete sess.endedAt;
-    if (db) {
-      try {
-        await db.collection("sessions").updateOne(
-          { id: sessionId },
-          { $set: { isActive: true }, $unset: { endedAt: "" } }
-        );
-      } catch (e) {
-        console.warn("Mongo activate session error:", e);
-      }
-    }
-  } else {
-    // Ending session: record endedAt timestamp for the 30-min window
-    sess.isActive = false;
-    sess.endedAt = new Date().toISOString();
-    if (db) {
-      try {
-        await db.collection("sessions").updateOne(
-          { id: sessionId },
-          { $set: { isActive: false, endedAt: sess.endedAt } }
-        );
-      } catch (e) {
-        console.warn("Mongo end session error:", e);
-      }
+  // Ending the active session: record endedAt timestamp for the 30-min window
+  sess.isActive = false;
+  sess.endedAt = new Date().toISOString();
+  if (db) {
+    try {
+      await db.collection("sessions").updateOne(
+        { id: sessionId },
+        { $set: { isActive: false, endedAt: sess.endedAt } }
+      );
+    } catch (e) {
+      console.warn("Mongo end session error:", e);
     }
   }
 
