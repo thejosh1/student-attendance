@@ -14,7 +14,7 @@ export default function EnrollPage() {
   const [name, setName] = useState("");
   const [admissionNo, setAdmissionNo] = useState("");
   const [email, setEmail] = useState("");
-  const [className, setClassName] = useState("TCE 502");
+  const [className, setClassName] = useState("TCE 511");
   const [deviceUserId, setDeviceUserId] = useState("");
   const [deviceId, setDeviceId] = useState("DEV-FUTO-01");
 
@@ -56,7 +56,7 @@ export default function EnrollPage() {
     setName("");
     setAdmissionNo("");
     setEmail("");
-    setClassName("TCE 502");
+    setClassName("TCE 511");
     setDeviceUserId(nextSlotId);
     setDeviceId("DEV-FUTO-01");
     setBioStep("idle");
@@ -202,7 +202,7 @@ export default function EnrollPage() {
         <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700">Active Sensor Node</p>
           <p className="mt-1 text-xl font-bold text-emerald-800">DEV-FUTO-01</p>
-          <p className="text-xs text-emerald-600 mt-0.5">Hall A (TCE 502)</p>
+          <p className="text-xs text-emerald-600 mt-0.5">Hall A (TCE 511)</p>
         </div>
         <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-blue-700">Next Template Slot</p>

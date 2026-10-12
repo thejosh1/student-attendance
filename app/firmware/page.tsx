@@ -180,7 +180,7 @@ export default function FirmwarePage() {
             <pre className="mt-1.5 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs font-mono text-emerald-400">
 {`curl -X POST https://your-futo-attendance.vercel.app/api/biometric/scan \\
   -H "Content-Type: application/json" \\
-  -d '{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 502", "method":"fingerprint"}'`}
+  -d '{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "method":"fingerprint"}'`}
             </pre>
           </div>
 
@@ -189,7 +189,7 @@ export default function FirmwarePage() {
             <pre className="mt-1.5 overflow-x-auto rounded-xl bg-slate-950 p-4 text-xs font-mono text-rose-400">
 {`curl -X POST https://your-futo-attendance.vercel.app/api/biometric/scan \\
   -H "Content-Type: application/json" \\
-  -d '{"deviceUserId":"2005", "deviceId":"DEV-FUTO-02", "classId":"TCE 311", "method":"fingerprint"}'
+  -d '{"deviceUserId":"2005", "deviceId":"DEV-FUTO-02", "classId":"TCE 504", "method":"fingerprint"}'
 # Response: HTTP 403 Forbidden: {"error": "Device is disabled by lecturer"}`}
             </pre>
           </div>

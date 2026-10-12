@@ -72,25 +72,25 @@ const char* vercelBaseUrl = "https://your-production-app.vercel.app";
 
 ### C. Hardware Node ID (Deploying to Multiple Classrooms)
 The cloud system has 4 configured terminals:
-- Unit 1 (Hall A / TCE 502):
+- Unit 1 (Hall A / TCE 511):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-01";
-  const char* ASSIGNED_COURSE = "TCE 502";
+  const char* ASSIGNED_COURSE = "TCE 511";
   ```
-- Unit 2 (Telecom Lab 3 / TCE 311):
+- Unit 2 (Telecom Lab 3 / TCE 504):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-02";
-  const char* ASSIGNED_COURSE = "TCE 311";
+  const char* ASSIGNED_COURSE = "TCE 504";
   ```
-- Unit 3 (RF & Microwave Lab / TCE 411):
+- Unit 3 (RF & Microwave Lab / TCE 512):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-03";
-  const char* ASSIGNED_COURSE = "TCE 411";
+  const char* ASSIGNED_COURSE = "TCE 512";
   ```
-- Unit 4 (Auditorium / TCE 506):
+- Unit 4 (Auditorium / TCE 514):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-04";
-  const char* ASSIGNED_COURSE = "TCE 506";
+  const char* ASSIGNED_COURSE = "TCE 514";
   ```
 
 > **Security Rule**: The platform starts with **DEV-FUTO-01 enabled** and **DEV-FUTO-02, 03, 04 disabled**. When a disabled device sends a scan, the cloud server responds with HTTP 403, and the device LCD will display: `ACCESS BLOCKED: Device Disabled`. Lecturers can enable/disable any device anytime from the web dashboard under **/devices**.
@@ -128,7 +128,7 @@ The cloud system has 4 configured terminals:
 2. Sensor extracts minutiae features and searches stored templates (`finger.fingerFastSearch()`).
 3. If matched (e.g., slot ID #2001):
    - ESP32 builds JSON payload:
-     `{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 502", "timestamp":"2026-10-12 08:05:00"}`
+     `{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 511", "timestamp":"2026-10-12 08:05:00"}`
    - Makes HTTPS POST to `/api/biometric/scan`.
    - **HTTP 200 OK**: LCD displays student name + `Verified!`.
    - **HTTP 403 Forbidden**: LCD displays `ACCESS BLOCKED: Device Disabled`.

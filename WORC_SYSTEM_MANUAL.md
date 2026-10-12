@@ -91,12 +91,12 @@ The primary command center for monitoring attendance in real-time.
 
 #### E. Toolbar: Search & Tabbed Filters
 - **Search Input Field**: Live search filtering by student name, matriculation/reg number, course code, or email address.
-- **Course Dropdown**: Filters attendance by specific course code (`TCE 502`, `TCE 311`, `TCE 411`, `TCE 506`, or `All Courses`).
+- **Course Dropdown**: Filters attendance by specific course code (`TCE 511`, `TCE 504`, `TCE 512`, `TCE 514`, or `All Courses`).
 - **Filter Tabs (`All Students`, `Present`, `Late`, `Absent`)**: One-click pills to isolate specific attendance status cohorts.
 
 #### F. Attendance Data Table
 - **Student Details Column**: Two-letter avatar badge, student full name, matriculation number, and allocated biometric template slot number (`Slot: #2001`).
-- **Course Code Column**: Course badge (e.g. `TCE 502`).
+- **Course Code Column**: Course badge (e.g. `TCE 511`).
 - **Biometric Check-In Column**: Exact timestamp of first scan (`07:45 AM`) with green status dot, or `—` if absent.
 - **Biometric Check-Out Column**: Timestamp of departure scan (if scanned after minimum 30-minute lecture duration).
 - **Method & Sensor Node Column**: Optical scanner verification tag (`AS608 Optical`).
@@ -124,7 +124,7 @@ The dedicated registration workspace where student profiles are paired with opti
 1. **Full Name Field**: Full name of the student (e.g., `Chukwuemeka Franklin Obi`).
 2. **Registration / Matric No Field**: Matriculation number format (e.g., `2021/130455`). Accepts any valid input for demo.
 3. **Email Address Field**: University email address (e.g., `student@futo.edu.ng`). Accepts any valid email for demo.
-4. **Course / Department Select**: Assigns the student to their designated course (`TCE 502`, `TCE 311`, `TCE 411`, `TCE 506`).
+4. **Course / Department Select**: Assigns the student to their designated course (`TCE 511`, `TCE 504`, `TCE 512`, `TCE 514`).
 5. **Biometric Slot ID Input**: Displays the auto-assigned optical memory slot (e.g., `2015`), editable if a specific hardware slot is needed.
 6. **Target Hardware Biometric Unit Box**: Confirms the physical unit where template minutiae will be registered (`DEV-FUTO-01 - Hall A`).
 7. **Simulated Fingerprint Optical Window (State Machine)**:
@@ -149,7 +149,7 @@ The dedicated registration workspace where student profiles are paired with opti
 The faculty management portal where lecturers schedule attendance sessions and assign physical hardware scanners.
 
 #### A. "Set Attendance For Class" Form
-- **Select Course Dropdown**: Choose between `TCE 502`, `TCE 311`, `TCE 411`, or `TCE 506`. Selecting a course automatically pairs it with its dedicated hardware unit.
+- **Select Course Dropdown**: Choose between `TCE 511`, `TCE 504`, `TCE 512`, or `TCE 514`. Selecting a course automatically pairs it with its dedicated hardware unit.
 - **Lecture Topic / Module Title Input**: Specific lecture subject (e.g., *Microprocessor Bus Interfacing & Timers*).
 - **Lecturer Name Input**: Course lecturer in charge (e.g., *Engr. Prof. K. C. Okafor*).
 - **Session Date Input**: Calendar date for the attendance window.
@@ -177,16 +177,16 @@ The central hardware controller for managing physical terminals across campus cl
 #### A. System Configuration: 4 Units (1 Active, 3 Disabled)
 As specified by the system architecture, four terminals are provisioned, with exactly **1 enabled** and **3 disabled**:
 
-1. **`DEV-FUTO-01` (Lecture Theatre Hall A / TCE 502)**:
+1. **`DEV-FUTO-01` (Lecture Theatre Hall A / TCE 511)**:
    - **Status**: 🟢 **ENABLED (Active)**
    - **Role**: Primary online scanner accepting student fingerprints.
-2. **`DEV-FUTO-02` (Telecom Lab 3 / TCE 311)**:
+2. **`DEV-FUTO-02` (Telecom Lab 3 / TCE 504)**:
    - **Status**: 🔴 **DISABLED**
    - **Role**: Deactivated; scans rejected by security policy.
-3. **`DEV-FUTO-03` (RF & Microwave Lab / TCE 411)**:
+3. **`DEV-FUTO-03` (RF & Microwave Lab / TCE 512)**:
    - **Status**: 🔴 **DISABLED**
    - **Role**: Deactivated; scans rejected by security policy.
-4. **`DEV-FUTO-04` (Central Auditorium / TCE 506)**:
+4. **`DEV-FUTO-04` (Central Auditorium / TCE 514)**:
    - **Status**: 🔴 **DISABLED**
    - **Role**: Deactivated; scans rejected by security policy.
 
@@ -271,7 +271,7 @@ Provides pre-formatted `curl` commands for testing the live cloud endpoints from
 | :--- | :---: | :--- | :--- |
 | `/api/biometric/scan` | `POST` | `{ deviceUserId, deviceId, classId, timestamp }` | Main check-in endpoint. Verifies device status (rejects with 403 if disabled). Compares timestamp against late cutoff. Logs check-in or check-out. |
 | `/api/biometric/enroll` | `POST` | `{ name, admissionNo, email, className, deviceUserId, deviceId }` | Enrolls a new student, generates profile, assigns optical template slot, and inserts initial records. |
-| `/api/attendance` | `GET` | `?date=YYYY-MM-DD&class=TCE+502` | Returns today's consolidated roster with computed status (`present`, `late`, `absent`). |
+| `/api/attendance` | `GET` | `?date=YYYY-MM-DD&class=TCE+511` | Returns today's consolidated roster with computed status (`present`, `late`, `absent`). |
 | `/api/devices` | `GET` | None | Returns list of all 4 provisioned hardware terminals. |
 | `/api/devices` | `PATCH` | `{ deviceId, isEnabled }` | Toggles hardware terminal active status. |
 | `/api/sessions` | `GET` | None | Returns list of configured class attendance sessions. |
