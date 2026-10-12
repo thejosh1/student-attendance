@@ -17,7 +17,7 @@ export async function POST(req: Request) {
       name: String(body.name),
       admissionNo: String(body.admissionNo),
       email: String(body.email),
-      className: body.className ? String(body.className) : "COE 505",
+      className: body.className ? String(body.className) : "TCE 502",
       deviceUserId: body.deviceUserId ? String(body.deviceUserId) : undefined,
       deviceId: body.deviceId ? String(body.deviceId) : "DEV-FUTO-01",
     });

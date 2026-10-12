@@ -3,14 +3,14 @@ export interface ScanAttendanceDto {
   deviceId: string;     // The hardware device unit (e.g., DEV-FUTO-01)
   method?: "fingerprint";
   timestamp?: string;   // ISO timestamp
-  classId?: string;     // e.g. COE 505
+  classId?: string;     // e.g. TCE 502
 }
 
 export interface EnrollStudentDto {
   name: string;
   admissionNo: string;  // Matric / Reg No (e.g. 2020/121870)
   email: string;
-  className: string;    // Course (e.g. COE 505)
+  className: string;    // Course (e.g. TCE 502)
   deviceUserId?: string;// Optional fingerprint slot ID
   deviceId?: string;    // Associated device
 }

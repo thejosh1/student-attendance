@@ -20,7 +20,7 @@ Incorporates your ESP32 Arduino hardware code (AS608 Optical Sensor, DS3231 RTC,
      - **Full Name**
      - **Registration / Matric Number** (e.g., `2021/130455` - any input accepted for demo)
      - **Email Address** (e.g., `student@futo.edu.ng` - any valid email accepted for demo)
-     - **Course Selection** (`COE 505`, `ECE 513`, `MEE 501`, `CSC 507`)
+     - **Course Selection** (`TCE 502`, `TCE 311`, `TCE 411`, `TCE 506`)
      - **Biometric Slot ID** (Auto-allocated or custom)
      - **Interactive 2-Step Optical Sensor Capture** (Place finger -> Remove -> Confirm -> Save) with a built-in simulation button for testing without hardware.
 
@@ -31,10 +31,10 @@ Incorporates your ESP32 Arduino hardware code (AS608 Optical Sensor, DS3231 RTC,
 
 4. **Multi-Device Hardware Control (`/devices`)**:
    - Configured with **4 physical fingerprint units**, with **exactly 3 disabled by default**:
-     - `DEV-FUTO-01`: Hall A / COE 505 -> **ENABLED (🟢 Active)**
-     - `DEV-FUTO-02`: Lab 3 / ECE 513 -> **DISABLED (🔴 Inactive)**
-     - `DEV-FUTO-03`: Workshop / MEE 501 -> **DISABLED (🔴 Inactive)**
-     - `DEV-FUTO-04`: Auditorium / CSC 507 -> **DISABLED (🔴 Inactive)**
+     - `DEV-FUTO-01`: Hall A / TCE 502 -> **ENABLED (🟢 Active)**
+     - `DEV-FUTO-02`: Lab 3 / TCE 311 -> **DISABLED (🔴 Inactive)**
+     - `DEV-FUTO-03`: Lab / TCE 411 -> **DISABLED (🔴 Inactive)**
+     - `DEV-FUTO-04`: Auditorium / TCE 506 -> **DISABLED (🔴 Inactive)**
    - Security Enforcement: Any scan arriving from a disabled unit is rejected with **HTTP 403 Forbidden**, triggering a "DEVICE DISABLED" alert on the ESP32 LCD/Serial and dashboard!
 
 5. **MongoDB Persistence & NestJS Service Architecture**:

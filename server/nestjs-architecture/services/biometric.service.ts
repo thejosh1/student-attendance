@@ -144,7 +144,7 @@ export class BiometricService {
       deviceUserId: slotId,
       admissionNo: dto.admissionNo.trim(),
       name: dto.name.trim(),
-      className: dto.className || "COE 505",
+      className: dto.className || "TCE 502",
       email: dto.email.trim(),
       enrolledAt: new Date().toLocaleDateString("en-CA"),
       deviceId: dto.deviceId || "DEV-FUTO-01",

@@ -72,25 +72,25 @@ const char* vercelBaseUrl = "https://your-production-app.vercel.app";
 
 ### C. Hardware Node ID (Deploying to Multiple Classrooms)
 The cloud system has 4 configured terminals:
-- Unit 1 (Hall A / COE 505):
+- Unit 1 (Hall A / TCE 502):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-01";
-  const char* ASSIGNED_COURSE = "COE 505";
+  const char* ASSIGNED_COURSE = "TCE 502";
   ```
-- Unit 2 (Lab 3 / ECE 513):
+- Unit 2 (Telecom Lab 3 / TCE 311):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-02";
-  const char* ASSIGNED_COURSE = "ECE 513";
+  const char* ASSIGNED_COURSE = "TCE 311";
   ```
-- Unit 3 (Workshop / MEE 501):
+- Unit 3 (RF & Microwave Lab / TCE 411):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-03";
-  const char* ASSIGNED_COURSE = "MEE 501";
+  const char* ASSIGNED_COURSE = "TCE 411";
   ```
-- Unit 4 (Auditorium / CSC 507):
+- Unit 4 (Auditorium / TCE 506):
   ```cpp
   const char* DEVICE_ID = "DEV-FUTO-04";
-  const char* ASSIGNED_COURSE = "CSC 507";
+  const char* ASSIGNED_COURSE = "TCE 506";
   ```
 
 > **Security Rule**: The platform starts with **DEV-FUTO-01 enabled** and **DEV-FUTO-02, 03, 04 disabled**. When a disabled device sends a scan, the cloud server responds with HTTP 403, and the device LCD will display: `ACCESS BLOCKED: Device Disabled`. Lecturers can enable/disable any device anytime from the web dashboard under **/devices**.
@@ -128,7 +128,7 @@ The cloud system has 4 configured terminals:
 2. Sensor extracts minutiae features and searches stored templates (`finger.fingerFastSearch()`).
 3. If matched (e.g., slot ID #2001):
    - ESP32 builds JSON payload:
-     `{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"COE 505", "timestamp":"2026-10-12 08:05:00"}`
+     `{"deviceUserId":"2001", "deviceId":"DEV-FUTO-01", "classId":"TCE 502", "timestamp":"2026-10-12 08:05:00"}`
    - Makes HTTPS POST to `/api/biometric/scan`.
    - **HTTP 200 OK**: LCD displays student name + `Verified!`.
    - **HTTP 403 Forbidden**: LCD displays `ACCESS BLOCKED: Device Disabled`.

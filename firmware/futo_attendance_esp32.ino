@@ -44,10 +44,10 @@ const char* scanEndpoint   = "/api/biometric/scan";
 const char* enrollEndpoint = "/api/biometric/enroll";
 
 // 3. Hardware Unit Identity (Each lecture hall has its assigned unit)
-// Active unit in this demo: "DEV-FUTO-01" (Hall A / COE 505)
+// Active unit in this demo: "DEV-FUTO-01" (Hall A / TCE 502)
 // Other units configured in system: DEV-FUTO-02, DEV-FUTO-03, DEV-FUTO-04 (Disabled by default)
 const char* DEVICE_ID = "DEV-FUTO-01";
-const char* ASSIGNED_COURSE = "COE 505";
+const char* ASSIGNED_COURSE = "TCE 502";
 
 /* SD CARD SPI PINS */
 #define SD_CS 5

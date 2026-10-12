@@ -9,7 +9,7 @@ export default function LecturerPage() {
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [courseCode, setCourseCode] = useState("COE 505");
+  const [courseCode, setCourseCode] = useState("TCE 502");
   const [topic, setTopic] = useState("");
   const [lecturerName, setLecturerName] = useState("Engr. Prof. K. C. Okafor");
   const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
@@ -23,10 +23,10 @@ export default function LecturerPage() {
 
   // Default course to device mapping
   const courseDeviceMap: Record<string, string> = {
-    "COE 505": "DEV-FUTO-01",
-    "ECE 513": "DEV-FUTO-02",
-    "MEE 501": "DEV-FUTO-03",
-    "CSC 507": "DEV-FUTO-04",
+    "TCE 502": "DEV-FUTO-01",
+    "TCE 311": "DEV-FUTO-02",
+    "TCE 411": "DEV-FUTO-03",
+    "TCE 506": "DEV-FUTO-04",
   };
 
   const loadData = useCallback(async () => {
