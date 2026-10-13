@@ -371,7 +371,7 @@ export default function EnrollPage() {
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-              Enroll Real Student
+              Enroll New Student
             </button>
           </div>
         </div>
@@ -478,7 +478,7 @@ export default function EnrollPage() {
                       </div>
                       <h4 className="text-base font-bold text-slate-900">No Students Enrolled Yet</h4>
                       <p className="text-xs text-slate-500 mt-1">
-                        Click <strong>Enroll Real Student</strong> to input student details and trigger the biometric fingerprint authentication modal.
+                        Click <strong>Enroll New Student</strong> to input student details and trigger the biometric fingerprint authentication modal.
                       </p>
                       <button
                         onClick={openInfoModal}
