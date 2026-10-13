@@ -150,10 +150,8 @@ void resetScreen()
       String l1 = currentDisplayLine1.length() > 0 ? currentDisplayLine1 : (currentSessionCourse + " [LIVE]");
       String l2 = currentDisplayLine2.length() > 0 ? currentDisplayLine2 : "Place Finger";
       showMessage(l1, l2);
-    } else if (currentSessionStatus == "ended") {
-      String l1 = currentSessionCourse.length() > 0 ? currentSessionCourse : "Class Ended";
-      showMessage(l1, "Class Has Ended");
     } else {
+      // Clean standby screen - "Class Has Ended" will only show temporarily when someone scans an ended class
       showMessage("Scan Fingerprint", String(DEVICE_ID) + " [ONLINE]");
     }
   } else {
@@ -640,13 +638,6 @@ void checkFingerprintNormal()
 
     Serial.printf("[SCAN] Finger Match Found on Optical Sensor! Template Slot: %d\n", id);
 
-    // If terminal is informed that class has ended:
-    if (currentSessionStatus == "ended") {
-      Serial.println("[SCAN] Attendance session concluded. Terminal rejecting scan.");
-      triggerMessageState("Class Has Ended", "Scan Rejected");
-      return;
-    }
-
     // CRITICAL ARCHITECTURE RULE:
     // What is stored on the SERVER is what the processor checks, NOT the SD card!
     // The SD card is strictly for offline fallback storage.
@@ -670,7 +661,10 @@ void checkFingerprintNormal()
           triggerMessageState("ACCESS BLOCKED", "Device Disabled");
         } else if (httpCode == 400) {
           if (outMessage == "Class Ended") {
-            triggerMessageState("Class Has Ended", "Scan Rejected");
+            String courseLabel = currentSessionCourse.length() > 0 ? currentSessionCourse : "Class Ended";
+            triggerMessageState(courseLabel, "Class Has Ended");
+          } else if (outMessage == "No Class Active") {
+            triggerMessageState("No Active Class", "Scan Rejected");
           } else {
             String displayHeader = serverStudentName.length() > 0 ? serverStudentName : "ACCESS REJECTED";
             Serial.printf("[SCAN] Server rejected scan: %s\n", outMessage.c_str());
