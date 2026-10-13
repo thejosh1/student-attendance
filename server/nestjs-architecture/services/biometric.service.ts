@@ -58,7 +58,8 @@ export class BiometricService {
     }
 
     let now = new Date();
-    if (dto.timestamp) {
+    // Only trust client-provided timestamp for true offline sync replay; live scans use authoritative server time
+    if (dto.isOfflineSync && dto.timestamp) {
       const parsed = new Date(dto.timestamp.replace(" ", "T"));
       if (!isNaN(parsed.getTime())) {
         now = parsed;

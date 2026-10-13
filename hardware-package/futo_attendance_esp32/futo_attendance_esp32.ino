@@ -426,18 +426,6 @@ void checkCloudSessionStatus()
       String newEndTime = parseJsonString(payload, "endTime");
       currentSessionEndTime = newEndTime;
 
-      // Local RTC check: auto-end if scheduled end time has arrived
-      if (hasRTC && newStatus == "active" && currentSessionEndTime.length() >= 5) {
-        DateTime now = rtc.now();
-        int endHour = currentSessionEndTime.substring(0, 2).toInt();
-        int endMinute = currentSessionEndTime.substring(3, 5).toInt();
-        if (now.hour() * 60 + now.minute() >= endHour * 60 + endMinute) {
-          Serial.println("[AUTO-END] Scheduled class end time reached on RTC! Automatically ending class.");
-          newStatus = "ended";
-          newLine2 = "Class Has Ended";
-        }
-      }
-
       if (newStatus.length() > 0) {
         bool changed = (newStatus != currentSessionStatus || newCourse != currentSessionCourse);
         currentSessionStatus = newStatus;
@@ -657,19 +645,6 @@ void checkFingerprintNormal()
       Serial.println("[SCAN] Attendance session concluded. Terminal rejecting scan.");
       triggerMessageState("Class Has Ended", "Scan Rejected");
       return;
-    }
-
-    // Local RTC check: reject if scheduled class end time has passed
-    if (hasRTC && currentSessionEndTime.length() >= 5) {
-      DateTime now = rtc.now();
-      int endHour = currentSessionEndTime.substring(0, 2).toInt();
-      int endMinute = currentSessionEndTime.substring(3, 5).toInt();
-      if (now.hour() * 60 + now.minute() >= endHour * 60 + endMinute) {
-        currentSessionStatus = "ended";
-        Serial.println("[SCAN] Scheduled class end time has elapsed on RTC. Rejecting scan.");
-        triggerMessageState("Class Has Ended", "Scan Rejected");
-        return;
-      }
     }
 
     // CRITICAL ARCHITECTURE RULE:
