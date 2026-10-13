@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { BiometricDevice, ClassSession, classes, addMinutesToTime, formatTime12 } from "@/lib/data";
 import LecturerGate from "@/components/LecturerGate";
+import { useLecturerAuth } from "@/lib/auth";
 
 export default function LecturerPage() {
+  const { user } = useLecturerAuth();
   const [sessions, setSessions] = useState<ClassSession[]>([]);
   const [devices, setDevices] = useState<BiometricDevice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,7 +14,13 @@ export default function LecturerPage() {
   // Form State
   const [courseCode, setCourseCode] = useState("TCE 511");
   const [topic, setTopic] = useState("");
-  const [lecturerName, setLecturerName] = useState("Engr. Prof. K. C. Okafor");
+  const [lecturerName, setLecturerName] = useState(user?.name || "");
+
+  useEffect(() => {
+    if (user?.name) {
+      setLecturerName(user.name);
+    }
+  }, [user?.name]);
   const [date, setDate] = useState(new Date().toLocaleDateString("en-CA"));
   const [startTime, setStartTime] = useState("08:00");
   const [graceMinutes, setGraceMinutes] = useState(15);
@@ -231,6 +239,16 @@ export default function LecturerPage() {
               <p className="text-sm text-slate-500 mt-0.5">
                 Set attendance requirements, schedule lecture sessions, and assign dedicated hardware fingerprint units per class.
               </p>
+              {user && (
+                <div className="mt-2.5 flex items-center gap-2 text-xs">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-emerald-800 border border-emerald-200 font-semibold">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    Lecturer: {user.name}
+                  </span>
+                  <span className="text-slate-400">·</span>
+                  <span className="text-slate-500 font-mono">{user.email}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -297,15 +315,28 @@ export default function LecturerPage() {
 
               {/* Lecturer Name */}
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Lecturer Name
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
+                    Lecturer in Charge <span className="text-rose-500">*</span>
+                  </label>
+                  {user?.name && (
+                    <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      Prefilled
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
+                  required
                   value={lecturerName}
                   onChange={(e) => setLecturerName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="e.g. Dr. Jane Doe"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-semibold text-slate-900 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                 />
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Prefilled with your authenticated lecturer profile ({user?.name || "Signed-in Lecturer"}).
+                </p>
               </div>
 
               {/* Date & Start Time */}

@@ -20,12 +20,25 @@ export interface PendingEnrollCommand {
   createdAt: number;
 }
 
+export interface LecturerAccount {
+  id: string;
+  name: string;
+  email: string;
+  password?: string;
+  staffId?: string;
+  department?: string;
+  title?: string;
+  role: "lecturer" | "admin";
+  createdAt?: string;
+}
+
 // Persistent store in globalThis for Next.js hot module reloading & memory cache
 interface GlobalAttendanceStore {
   students: Student[];
   records: AttendanceRecord[];
   devices: BiometricDevice[];
   sessions: ClassSession[];
+  lecturers: LecturerAccount[];
   pendingEnrollments: Record<string, PendingEnrollCommand>;
   initialized: boolean;
 }
@@ -37,6 +50,7 @@ export const store: GlobalAttendanceStore = (g.__attendanceStore ??= {
   records: seedRecords(),
   devices: [...initialDevices],
   sessions: [...initialSessions],
+  lecturers: [],
   pendingEnrollments: {},
   initialized: false,
 });
@@ -590,5 +604,59 @@ export async function clearPendingEnrollCommand(deviceId: string) {
       console.warn("Mongo clear pending command error:", e);
     }
   }
+}
+
+export async function getAllLecturers(): Promise<LecturerAccount[]> {
+  const db = await getDb();
+  if (db) {
+    try {
+      const items = (await db.collection("lecturers").find({}).toArray()) as any;
+      if (items && items.length > 0) {
+        store.lecturers = items;
+        return items;
+      }
+    } catch (e) {
+      console.warn("Mongo get lecturers error:", e);
+    }
+  }
+  return store.lecturers || [];
+}
+
+export async function findLecturerByEmail(email: string): Promise<LecturerAccount | null> {
+  const cleanEmail = email.trim().toLowerCase();
+  const db = await getDb();
+  if (db) {
+    try {
+      const item = (await db.collection("lecturers").findOne({ email: cleanEmail })) as any;
+      if (item) return item;
+    } catch (e) {
+      console.warn("Mongo find lecturer error:", e);
+    }
+  }
+  return store.lecturers?.find((l) => l.email.toLowerCase() === cleanEmail) || null;
+}
+
+export async function saveLecturer(lecturer: LecturerAccount): Promise<LecturerAccount> {
+  if (!store.lecturers) store.lecturers = [];
+  const idx = store.lecturers.findIndex((l) => l.email.toLowerCase() === lecturer.email.toLowerCase());
+  if (idx >= 0) {
+    store.lecturers[idx] = { ...store.lecturers[idx], ...lecturer };
+  } else {
+    store.lecturers.push(lecturer);
+  }
+
+  const db = await getDb();
+  if (db) {
+    try {
+      await db.collection("lecturers").updateOne(
+        { email: lecturer.email.toLowerCase() },
+        { $set: lecturer },
+        { upsert: true }
+      );
+    } catch (e) {
+      console.warn("Mongo save lecturer error:", e);
+    }
+  }
+  return lecturer;
 }
 

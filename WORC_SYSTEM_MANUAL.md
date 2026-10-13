@@ -151,7 +151,7 @@ The faculty management portal where lecturers schedule attendance sessions and a
 #### A. "Set Attendance For Class" Form
 - **Select Course Dropdown**: Choose between `TCE 511`, `TCE 504`, `TCE 512`, or `TCE 514`. Selecting a course automatically pairs it with its dedicated hardware unit.
 - **Lecture Topic / Module Title Input**: Specific lecture subject (e.g., *Microprocessor Bus Interfacing & Timers*).
-- **Lecturer Name Input**: Course lecturer in charge (e.g., *Engr. Prof. K. C. Okafor*).
+- **Lecturer Name Input**: Course lecturer in charge (automatically prefilled from the authenticated lecturer account, e.g. *Dr. Jane Doe* or *Engr. Prof. K. C. Okafor*).
 - **Session Date Input**: Calendar date for the attendance window.
 - **Start Time Input**: Lecture commencement time (e.g., `08:00 AM`).
 - **Late Cutoff (Threshold) Input**: The pivotal attendance boundary (e.g., `08:15 AM`). Scans logged after this minute are automatically classified as Late.
