@@ -121,24 +121,11 @@ export class BiometricService {
       };
     }
 
-    // Verify student is enrolled in the specific course currently active on this terminal
-    if (norm(student.className) !== norm(targetSession.courseCode)) {
-      return {
-        action: "wrong-class",
-        status: 400,
-        error: `CLASS MISMATCH: Terminal [${deviceId}] is currently dedicated to ${targetSession.courseCode} (${targetSession.topic}). ${student.name} is enrolled in ${student.className}. A biometric device cannot take attendance for 2 classes at once.`,
-        student: student.name,
-        admissionNo: student.admissionNo,
-        studentClass: student.className,
-        activeClass: targetSession.courseCode,
-        deviceId,
-      };
-    }
-
+    const sessionCourse = targetSession.courseCode;
     const lateCutoff = targetSession.lateCutoff || (targetSession.startTime ? addMinutesToTime(targetSession.startTime, 15) : "08:15");
 
     const existingIndex = store.records.findIndex(
-      (r) => r.studentId === student.id && r.date === date && (r.courseCode === student.className || !r.courseCode)
+      (r) => r.studentId === student.id && r.date === date && (norm(r.courseCode) === norm(sessionCourse) || !r.courseCode)
     );
 
     if (existingIndex === -1) {
@@ -149,7 +136,7 @@ export class BiometricService {
         checkOut: null,
         method: dto.method ?? "fingerprint",
         deviceId,
-        courseCode: student.className,
+        courseCode: sessionCourse,
       };
       store.records.push(record);
 
@@ -168,12 +155,12 @@ export class BiometricService {
         status: 200,
         student: student.name,
         admissionNo: student.admissionNo,
-        course: student.className,
+        course: sessionCourse,
         sessionTopic: targetSession.topic,
         time,
         attendanceStatus: status,
         deviceId,
-        message: `Welcome ${student.name}! Checked in for ${student.className} at ${time} (${status.toUpperCase()}).`,
+        message: `Welcome ${student.name}! Checked in for ${sessionCourse} at ${time} (${status.toUpperCase()}).`,
       };
     }
 
@@ -269,10 +256,19 @@ export class BiometricService {
     const hasAnyActiveSession = sessions.some((sess) => sess.isActive);
 
     const rows: AttendanceRow[] = students.map((s) => {
-      const r = records.find((rec) => rec.studentId === s.id && rec.date === date);
+      const activeSession = sessions.find((sess) => sess.isActive);
+      const targetCourse = classFilter && classFilter !== "all" 
+        ? classFilter 
+        : (activeSession?.courseCode || s.className);
+
+      const r = records.find(
+        (rec) => rec.studentId === s.id && rec.date === date && (normCourse(rec.courseCode) === normCourse(targetCourse) || !rec.courseCode)
+      ) || records.find((rec) => rec.studentId === s.id && rec.date === date);
+
       const sessionForCourse =
-        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(s.className) && sess.isActive) ||
-        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(s.className));
+        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(targetCourse) && sess.isActive) ||
+        sessions.find((sess) => normCourse(sess.courseCode) === normCourse(targetCourse)) ||
+        activeSession;
 
       const isSessionActive = Boolean(
         (sessionForCourse && sessionForCourse.isActive) || (!sessionForCourse && hasAnyActiveSession)
@@ -281,6 +277,7 @@ export class BiometricService {
 
       return {
         ...s,
+        className: r?.courseCode || targetCourse || s.className,
         checkIn: r?.checkIn ?? null,
         checkOut: r?.checkOut ?? null,
         method: r?.method ?? null,
@@ -289,10 +286,9 @@ export class BiometricService {
       };
     });
 
-
     const filteredRows =
       classFilter && classFilter !== "all"
-        ? rows.filter((r) => r.className === classFilter)
+        ? rows.filter((r) => normCourse(r.className) === normCourse(classFilter))
         : rows;
 
     return {

@@ -23,14 +23,6 @@ export default function LecturerPage() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [creating, setCreating] = useState(false);
 
-  // Default course to device mapping
-  const courseDeviceMap: Record<string, string> = {
-    "TCE 511": "DEV-FUTO-01",
-    "TCE 504": "DEV-FUTO-02",
-    "TCE 512": "DEV-FUTO-03",
-    "TCE 514": "DEV-FUTO-04",
-  };
-
   const loadData = useCallback(async () => {
     try {
       const [sessRes, devRes] = await Promise.all([
@@ -52,11 +44,9 @@ export default function LecturerPage() {
     loadData();
   }, [loadData]);
 
-  // When course changes, automatically suggest assigned device
+  // When course changes, keep the assigned hardware terminal (DEV-FUTO-01) by default
   const handleCourseChange = (selectedCourse: string) => {
-    setCourseCode(selectedCourse);
-    const mappedDev = courseDeviceMap[selectedCourse] || "DEV-FUTO-01";
-    setAssignedDeviceId(mappedDev);
+    setCourseCode(selectedCourse.toUpperCase());
   };
 
   const handleStartTimeChange = (newStart: string) => {
@@ -265,19 +255,29 @@ export default function LecturerPage() {
               {/* Course Selection */}
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Select Course <span className="text-rose-500">*</span>
+                  Course Code <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={courseCode}
-                  onChange={(e) => handleCourseChange(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                >
-                  {classes.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  <input
+                    type="text"
+                    required
+                    value={courseCode}
+                    onChange={(e) => handleCourseChange(e.target.value)}
+                    placeholder="e.g. TCE 511, TCE 504, EEE 501"
+                    list="course-options"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold uppercase text-slate-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                  <datalist id="course-options">
+                    {classes.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-500">
+                  Pick from suggested courses or enter any custom course code.
+                </p>
               </div>
 
               {/* Lecture Topic */}

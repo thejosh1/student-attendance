@@ -44,11 +44,9 @@ const char* enrollEndpoint   = "/api/biometric/enroll";
 const char* sessionEndpoint  = "/api/biometric/session";
 
 
-// 3. Hardware Unit Identity (Each lecture hall has its assigned unit)
-// Active unit in this demo: "DEV-FUTO-01" (Hall A / TCE 511)
-// Other units configured in system: DEV-FUTO-02, DEV-FUTO-03, DEV-FUTO-04 (Disabled by default)
+// 3. Hardware Unit Identity (Physical terminal can host ANY course set by lecturer)
 const char* DEVICE_ID = "DEV-FUTO-01";
-const char* ASSIGNED_COURSE = "TCE 511";
+const char* DEFAULT_COURSE = "TCE 511"; // Fallback default if no cloud session is active
 
 /* SD CARD SPI PINS */
 #define SD_CS 5
@@ -87,6 +85,7 @@ int enrollID = -1;
 String enrollName = "";
 String enrollRegNo = "";
 String enrollEmail = "";
+String enrollCourse = "";
 
 /* AUTHORITATIVE CLOUD SESSION STATE */
 // "active" (class ongoing), "ended" (ended within 30 min), "idle" (no class / standby)
@@ -233,11 +232,12 @@ bool sendScanToCloud(int fingerId, String customTimestamp, String &outMessage, S
 
     String ts = customTimestamp.length() > 0 ? customTimestamp : getFormattedTimestamp();
 
-    // Build JSON payload
+    // Build JSON payload with dynamic course assigned by lecturer
+    String activeCourse = currentSessionCourse.length() > 0 ? currentSessionCourse : String(DEFAULT_COURSE);
     String payload = "{";
     payload += "\"deviceUserId\":\"" + String(fingerId) + "\",";
     payload += "\"deviceId\":\"" + String(DEVICE_ID) + "\",";
-    payload += "\"classId\":\"" + String(ASSIGNED_COURSE) + "\",";
+    payload += "\"classId\":\"" + activeCourse + "\",";
     payload += "\"timestamp\":\"" + ts + "\",";
     payload += "\"method\":\"fingerprint\"";
     if (isOffline) {
@@ -263,7 +263,12 @@ bool sendScanToCloud(int fingerId, String customTimestamp, String &outMessage, S
         } else if (response.indexOf("check-out") > 0) {
           outMessage = "Checked Out";
         } else {
-          outMessage = "Verified!";
+          String attStatus = parseJsonString(response, "attendanceStatus");
+          if (attStatus == "late") {
+            outMessage = "Late!";
+          } else {
+            outMessage = "Present!";
+          }
         }
         https.end();
         return true;
@@ -308,9 +313,9 @@ bool sendScanToCloud(int fingerId, String &outMessage) {
 /**
  * Syncs student enrollment to Vercel API over HTTPS
  */
-bool sendEnrollToCloud(int fingerId, String name, String regNo, String email) {
+bool sendEnrollToCloud(int fingerId, String name, String regNo, String email, String course = "") {
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[CLOUD ENROLL] WiFi not connected. Saved to SD card only.");
+    Serial.println("[CLOUD ENROLL] WiFi not connected. Cannot reach Server.");
     return false;
   }
 
@@ -327,12 +332,14 @@ bool sendEnrollToCloud(int fingerId, String name, String regNo, String email) {
     https.addHeader("X-Device-Id", DEVICE_ID);
     https.setTimeout(6000);
 
+    String regCourse = course.length() > 0 ? course : ((currentSessionCourse.length() > 0) ? currentSessionCourse : String(DEFAULT_COURSE));
+
     String payload = "{";
     payload += "\"deviceUserId\":\"" + String(fingerId) + "\",";
     payload += "\"name\":\"" + name + "\",";
     payload += "\"admissionNo\":\"" + regNo + "\",";
     payload += "\"email\":\"" + email + "\",";
-    payload += "\"className\":\"" + String(ASSIGNED_COURSE) + "\",";
+    payload += "\"className\":\"" + regCourse + "\",";
     payload += "\"deviceId\":\"" + String(DEVICE_ID) + "\"";
     payload += "}";
 
@@ -377,6 +384,7 @@ void checkCloudEnrollmentCommand()
         enrollName = parseJsonString(payload, "name");
         enrollRegNo = parseJsonString(payload, "admissionNo");
         enrollEmail = parseJsonString(payload, "email");
+        enrollCourse = parseJsonString(payload, "className");
 
         showMessage("Place Finger", enrollName);
         stateTimer = millis();
@@ -495,9 +503,10 @@ void setup()
       file.println("ID,Name,Timestamp,DeviceID,Status");
       file.close();
     }
-    if (!SD.exists("/students.csv")) {
-      File file = SD.open("/students.csv", FILE_WRITE);
-      file.close();
+    // Prevent data conflicts: wipe any legacy local students.csv so server remains authoritative
+    if (SD.exists("/students.csv")) {
+      Serial.println("[SD] Purged legacy /students.csv to ensure cloud database authority.");
+      SD.remove("/students.csv");
     }
   }
 
@@ -600,20 +609,8 @@ void loop()
         finger.image2Tz(2);
         
         if (finger.createModel() == FINGERPRINT_OK && finger.storeModel(enrollID) == FINGERPRINT_OK) {
-          if (hasSD) {
-            File file = SD.open("/students.csv", FILE_APPEND);
-            if (file) {
-              file.print(enrollID);
-              file.print(",");
-              file.print(enrollName);
-              file.print(",");
-              file.print(enrollRegNo);
-              file.print(",");
-              file.println(enrollEmail);
-              file.close();
-            }
-          }
-          sendEnrollToCloud(enrollID, enrollName, enrollRegNo, enrollEmail);
+          // Cloud Server is authoritative: sync enrollment directly to database (no local SD conflict)
+          sendEnrollToCloud(enrollID, enrollName, enrollRegNo, enrollEmail, enrollCourse);
           triggerMessageState("ENROLLED!", enrollName);
         } else {
 
@@ -739,7 +736,8 @@ void queueOfflineScan(int id, String timestamp)
     file.print(",");
     file.print(DEVICE_ID);
     file.print(",");
-    file.println(ASSIGNED_COURSE);
+    String activeCourse = currentSessionCourse.length() > 0 ? currentSessionCourse : String(DEFAULT_COURSE);
+    file.println(activeCourse);
     file.close();
     Serial.printf("[SD OFFLINE] Cached Slot #%d to /offline_queue.csv (%s)\n", id, timestamp.c_str());
   } else {
@@ -880,7 +878,8 @@ void handleRoot()
   html += ".btn-blue{background:#2563eb;}";
   html += "</style></head><body><div class='container'>";
   html += "<div class='card'><h2>ESP32 Biometric Terminal (" + String(DEVICE_ID) + ")</h2>";
-  html += "<p>Assigned Course: <b>" + String(ASSIGNED_COURSE) + "</b> | Cloud: <b>" + String(vercelBaseUrl) + "</b></p>";
+  String activeDisplayCourse = currentSessionCourse.length() > 0 ? currentSessionCourse : (String(DEFAULT_COURSE) + " (Standby)");
+  html += "<p>Active Course: <b>" + activeDisplayCourse + "</b> | Cloud: <b>" + String(vercelBaseUrl) + "</b></p>";
   html += "<p>Status: <span class='badge'>ONLINE</span> | IP: " + WiFi.localIP().toString() + "</p>";
   html += "</div>";
   html += "<div class='card'><h3>Terminal Utilities</h3>";
