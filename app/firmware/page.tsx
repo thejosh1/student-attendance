@@ -78,21 +78,30 @@ export default function FirmwarePage() {
       </section>
 
       {/* Guide Cards */}
-      <section className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 font-bold mb-3">
             1
           </div>
           <h3 className="text-base font-bold text-slate-900">How the Device Talks to Vercel</h3>
           <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-            The ESP32 uses <code>HTTPClient</code> with <code>WiFiClientSecure</code> and <code>client.setInsecure()</code>. Whenever a student places their finger, the AS608 matches the template and the ESP32 sends an HTTPS POST directly to <code>https://student-attendance-peach.vercel.app/api/biometric/scan</code> with device ID and slot ID.
+            The ESP32 uses <code>HTTPClient</code> with <code>WiFiClientSecure</code> and <code>client.setInsecure()</code>. Whenever a student places their finger, the AS608 matches the template and the ESP32 sends an HTTPS POST directly to <code>/api/biometric/scan</code> with device ID and slot ID.
           </p>
         </div>
 
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-800 font-bold mb-3">
+            2
+          </div>
+          <h3 className="text-base font-bold text-slate-900">WiFi Proximity OTP (&lt; 50 Feet)</h3>
+          <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+            The ESP32 operates in <code>WIFI_AP_STA</code> mode with TX power clamped to <code>WIFI_POWER_8_5dBm</code> (~50 feet radius). It broadcasts an open SSID <code>WORC-OTP-[CODE]</code>. Students in the room can see the 6-digit rolling code and submit attendance via the website!
+          </p>
+        </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100 text-blue-800 font-bold mb-3">
-            2
+            3
           </div>
           <h3 className="text-base font-bold text-slate-900">Disabled Devices Enforcement</h3>
           <p className="mt-2 text-xs text-slate-600 leading-relaxed">
@@ -102,11 +111,11 @@ export default function FirmwarePage() {
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100 text-purple-800 font-bold mb-3">
-            3
+            4
           </div>
           <h3 className="text-base font-bold text-slate-900">Offline SD Card Fallback</h3>
           <p className="mt-2 text-xs text-slate-600 leading-relaxed">
-            If campus WiFi disconnects or power drops, your original SD card logic saves attendance logs to <code>/logs.csv</code> with timestamp from the DS3231 RTC. When WiFi reconnects, the ESP32 automatically uploads pending logs to the cloud.
+            If campus WiFi disconnects or power drops, the SD card logic saves attendance logs to <code>/logs.csv</code> with timestamp from the DS3231 RTC. When WiFi reconnects, the ESP32 automatically uploads pending logs to the cloud.
           </p>
         </div>
       </section>

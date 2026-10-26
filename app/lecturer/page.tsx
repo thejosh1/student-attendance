@@ -30,6 +30,7 @@ export default function LecturerPage() {
 
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" | "info" } | null>(null);
   const [creating, setCreating] = useState(false);
+  const [conflictModalSession, setConflictModalSession] = useState<ClassSession | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -73,6 +74,41 @@ export default function LecturerPage() {
     setLateCutoff(addMinutesToTime(startTime, mins));
   };
 
+  const isMySession = useCallback(
+    (s: ClassSession) => {
+      if (!user) return false;
+      if (s.lecturerEmail && user.email) {
+        if (s.lecturerEmail.toLowerCase() === user.email.toLowerCase()) return true;
+      }
+      if (s.lecturerId && user.id) {
+        if (s.lecturerId === user.id) return true;
+      }
+      const cleanUser = user.name.trim().toLowerCase();
+      const cleanSess = (s.lecturerName || "").trim().toLowerCase();
+      if (cleanUser && cleanSess && cleanUser === cleanSess) return true;
+
+      // If user is default lecturer, include sessions marked "Course Lecturer" or with Okafor
+      const isDefault = cleanUser.includes("okafor") || user.email === "lecturer@futo.edu.ng";
+      if (isDefault) {
+        if (cleanSess.includes("okafor") || cleanSess === "course lecturer") return true;
+      }
+
+      return false;
+    },
+    [user]
+  );
+
+  // Filter only this lecturer's sessions (past and present)
+  const mySessions = sessions.filter(isMySession);
+  const myActiveCount = mySessions.filter((s) => s.isActive).length;
+  const myPastCount = mySessions.length - myActiveCount;
+
+  // Check if assigned hardware node has an active session conducted by ANOTHER lecturer
+  const deviceActiveSession = sessions.find((s) => s.deviceId === assignedDeviceId && s.isActive);
+  const isConflictWithOtherLecturer = Boolean(
+    deviceActiveSession && !isMySession(deviceActiveSession)
+  );
+
   const handleCreateSession = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) {
@@ -93,7 +129,18 @@ export default function LecturerPage() {
       return;
     }
 
+    // Alert if terminal is currently occupied by another lecturer
+    if (deviceActiveSession && isConflictWithOtherLecturer) {
+      setConflictModalSession(deviceActiveSession);
+      return;
+    }
+
+    await executeCreateSession();
+  };
+
+  const executeCreateSession = async () => {
     setCreating(true);
+    setConflictModalSession(null);
     try {
       const res = await fetch("/api/sessions", {
         method: "POST",
@@ -101,7 +148,9 @@ export default function LecturerPage() {
         body: JSON.stringify({
           courseCode,
           topic: topic.trim(),
-          lecturerName: lecturerName.trim(),
+          lecturerName: lecturerName.trim() || user?.name || "Lecturer in Charge",
+          lecturerEmail: user?.email,
+          lecturerId: user?.id,
           date,
           startTime,
           lateCutoff,
@@ -114,7 +163,7 @@ export default function LecturerPage() {
       if (!res.ok) throw new Error(data.error || "Failed to create session");
 
       setToast({
-        message: `Session launched for ${courseCode}! Terminal ${assignedDeviceId} assigned.`,
+        message: `Session launched for ${courseCode}! Terminal ${assignedDeviceId} activated.`,
         type: "success",
       });
       setTimeout(() => setToast(null), 4000);
@@ -461,15 +510,39 @@ export default function LecturerPage() {
                   </div>
                 )}
 
-                {/* Single Class per Terminal Notice */}
-                {(() => {
+                {/* Device Conflict Alert: Active Session for ANOTHER lecturer */}
+                {isConflictWithOtherLecturer && deviceActiveSession && (
+                  <div className="mt-3 rounded-xl border-2 border-rose-400 bg-rose-50 p-3.5 text-xs text-rose-950 shadow-sm animate-in fade-in">
+                    <div className="flex items-start gap-2.5">
+                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-rose-200 text-rose-800 font-bold">
+                        ⚠️
+                      </div>
+                      <div>
+                        <p className="font-extrabold text-rose-900 text-[13px]">
+                          DEVICE CONFLICT: Active Session for Another Lecturer
+                        </p>
+                        <p className="mt-1 text-rose-800 leading-relaxed">
+                          Terminal <strong>{assignedDeviceId}</strong> is currently taking attendance for{" "}
+                          <strong className="underline">{deviceActiveSession.courseCode} ({deviceActiveSession.topic})</strong>{" "}
+                          under <strong>{deviceActiveSession.lecturerName}</strong>.
+                        </p>
+                        <p className="mt-1 text-[11px] text-rose-700 font-medium">
+                          Activating your class on this device will interrupt their ongoing attendance session.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Single Class per Terminal Notice (when NOT in conflict with another lecturer) */}
+                {!isConflictWithOtherLecturer && (() => {
                   const currentActive = sessions.find((s) => s.deviceId === assignedDeviceId && s.isActive);
                   if (currentActive) {
                     return (
                       <div className="mt-2.5 rounded-lg border border-amber-200 bg-amber-50/80 p-2.5 text-[11px] text-amber-900 flex items-start gap-2">
                         <span className="font-bold flex-shrink-0">⚠️ Notice:</span>
                         <span>
-                          <strong>{assignedDeviceId}</strong> is currently taking attendance for <strong>{currentActive.courseCode}</strong>. Activating this session will conclude {currentActive.courseCode} (strictly 1 class per terminal).
+                          <strong>{assignedDeviceId}</strong> is currently taking attendance for your session <strong>{currentActive.courseCode}</strong>.
                         </span>
                       </div>
                     );
@@ -494,26 +567,22 @@ export default function LecturerPage() {
           </div>
         </section>
 
-        {/* List of Class Sessions */}
+        {/* List of Class Sessions: ONLY THIS LECTURER'S PAST AND PRESENT SESSIONS */}
         <section className="lg:col-span-7">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-4 border-b border-slate-100 gap-3">
               <div>
-                <h2 className="text-base font-bold text-slate-900">Class Attendance Sessions</h2>
-                <p className="text-xs text-slate-500">Live & scheduled course tracking records (strictly 1 section per course)</p>
+                <h2 className="text-base font-bold text-slate-900">My Class Attendance Sessions</h2>
+                <p className="text-xs text-slate-500">
+                  Past and present lectures conducted by <strong className="text-slate-800">{user?.name || "you"}</strong>
+                </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {duplicateCourses.length > 0 && (
-                  <button
-                    onClick={handleDeduplicate}
-                    title="Prune extra duplicate sessions"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 transition shadow-sm"
-                  >
-                    <span>⚠️ Prune Duplicates ({duplicateCourses.join(", ")})</span>
-                  </button>
-                )}
+                <span className="rounded-full bg-blue-50 border border-blue-200 px-3 py-1 text-xs font-bold text-blue-800">
+                  {myActiveCount} Live · {myPastCount} Past
+                </span>
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {sessions.length} Configured
+                  {mySessions.length} Total
                 </span>
               </div>
             </div>
@@ -523,18 +592,29 @@ export default function LecturerPage() {
                 <div className="py-12 text-center text-slate-400">
                   <div className="flex items-center justify-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                    Loading class sessions…
+                    Loading your class sessions…
                   </div>
                 </div>
               )}
 
-              {!loading && sessions.length === 0 && (
-                <div className="py-12 text-center text-slate-400">
-                  No sessions created yet. Use the form to set attendance.
+              {!loading && mySessions.length === 0 && (
+                <div className="py-16 text-center text-slate-400">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 mb-3">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800">No Lectures Found for {user?.name || "You"}</h4>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    You haven&apos;t scheduled or conducted any attendance sessions yet. Use the form on the left to configure and launch your class attendance.
+                  </p>
                 </div>
               )}
 
-              {sessions.map((sess) => {
+              {mySessions.map((sess) => {
                 const dev = devices.find((d) => d.id === sess.deviceId);
                 return (
                   <div
@@ -650,6 +730,75 @@ export default function LecturerPage() {
           </div>
         </section>
       </div>
+
+      {/* Device Conflict Alert Modal */}
+      {conflictModalSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg rounded-3xl border-2 border-rose-400 bg-white p-6 shadow-2xl">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-700">
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+              </div>
+              <div>
+                <span className="rounded-full bg-rose-100 px-2.5 py-0.5 text-[10px] font-bold text-rose-800 uppercase tracking-wide">
+                  Device In Session Warning
+                </span>
+                <h3 className="text-lg font-black text-slate-900">
+                  Terminal Occupied by Another Lecturer
+                </h3>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-2xl bg-rose-50/70 border border-rose-200 p-4 text-xs text-rose-950 space-y-2">
+              <p className="font-semibold text-rose-900">
+                Biometric terminal <strong>{assignedDeviceId}</strong> is currently active and taking attendance for another lecturer&apos;s class:
+              </p>
+              <div className="rounded-xl bg-white p-3 border border-rose-200 space-y-1.5 font-medium">
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Lecturer in charge:</span>
+                  <strong className="text-slate-900">{conflictModalSession.lecturerName}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Course &amp; Topic:</span>
+                  <span className="font-bold text-slate-800">
+                    {conflictModalSession.courseCode} ({conflictModalSession.topic})
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Session Window:</span>
+                  <span className="font-mono text-slate-700">
+                    {conflictModalSession.startTime} – {conflictModalSession.endTime} (Cutoff: {conflictModalSession.lateCutoff})
+                  </span>
+                </div>
+              </div>
+              <p className="text-[11px] text-rose-800">
+                Activating your class on this device now will immediately <strong>conclude {conflictModalSession.lecturerName}&apos;s ongoing session</strong>.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-col sm:flex-row gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setConflictModalSession(null)}
+                className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+              >
+                Cancel / Pick Different Terminal
+              </button>
+              <button
+                type="button"
+                onClick={executeCreateSession}
+                className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-md shadow-rose-600/25 hover:bg-rose-700 transition"
+              >
+                Interrupt &amp; Take Over Terminal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

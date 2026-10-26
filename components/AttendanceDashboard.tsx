@@ -48,6 +48,50 @@ export default function AttendanceDashboard() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "info" | "error" } | null>(null);
   const [loading, setLoading] = useState(true);
   const [isClearing, setIsClearing] = useState(false);
+  const [isOtpModalOpen, setIsOtpModalOpen] = useState(false);
+  const [otpAdmissionNo, setOtpAdmissionNo] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpFeedback, setOtpFeedback] = useState<{ message: string; type: "success" | "error" } | null>(null);
+
+  async function handleOtpSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!otpAdmissionNo || !otpCode) {
+      setOtpFeedback({ message: "Please provide your Matric/Reg Number and the 6-digit OTP.", type: "error" });
+      return;
+    }
+    setOtpSubmitting(true);
+    setOtpFeedback(null);
+    try {
+      const res = await fetch("/api/attendance/otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          admissionNo: otpAdmissionNo,
+          otp: otpCode,
+          deviceId: selectedDeviceId,
+          courseCode: activeSession?.courseCode,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setOtpFeedback({ message: data.message || "Attendance verified successfully!", type: "success" });
+        setToast({ message: data.message || "Attendance checked in successfully via WiFi OTP!", type: "success" });
+        await load();
+        setTimeout(() => {
+          setIsOtpModalOpen(false);
+          setOtpCode("");
+          setOtpFeedback(null);
+        }, 2200);
+      } else {
+        setOtpFeedback({ message: data.error || "Failed to verify attendance.", type: "error" });
+      }
+    } catch (err: any) {
+      setOtpFeedback({ message: "Network error during check-in. Try again.", type: "error" });
+    } finally {
+      setOtpSubmitting(false);
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -211,6 +255,23 @@ export default function AttendanceDashboard() {
                 Clear Today
               </button>
             )}
+
+            {/* WiFi OTP Check-in Action Button */}
+            <button
+              onClick={() => {
+                setOtpFeedback(null);
+                setIsOtpModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-sky-600 px-3.5 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-sky-700 transition"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                <line x1="12" y1="20" x2="12.01" y2="20" />
+              </svg>
+              <span>WiFi OTP Check-in</span>
+            </button>
 
             {/* Quick Link to Enroll */}
             <Link
@@ -425,13 +486,25 @@ export default function AttendanceDashboard() {
                     </td>
                     <td className="px-5 py-3.5">
                       {r.checkIn ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 border border-emerald-200/60">
-                          <svg className="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M12 11c0 3.5-1.5 6.5-4 8.5" />
-                            <path d="M12 3a9 9 0 0 0-9 9c0 3.5 1.5 6.5 4 8.5" />
-                          </svg>
-                          AS608 Optical
-                        </span>
+                        r.method === "wifi_otp" ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-800 border border-sky-200/90 shadow-sm">
+                            <svg className="h-3.5 w-3.5 text-sky-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                              <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                              <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                              <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                              <line x1="12" y1="20" x2="12.01" y2="20" />
+                            </svg>
+                            WiFi OTP (&lt;50ft)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800 border border-emerald-200/60">
+                            <svg className="h-3.5 w-3.5 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M12 11c0 3.5-1.5 6.5-4 8.5" />
+                              <path d="M12 3a9 9 0 0 0-9 9c0 3.5 1.5 6.5 4 8.5" />
+                            </svg>
+                            AS608 Optical
+                          </span>
+                        )
                       ) : (
                         <span className="text-slate-400 text-xs">—</span>
                       )}
@@ -451,6 +524,125 @@ export default function AttendanceDashboard() {
           </table>
         </div>
       </div>
+
+      {/* WiFi Proximity OTP Check-in Modal */}
+      {isOtpModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl relative">
+            <button
+              onClick={() => setIsOtpModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-700">
+                <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+                  <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+                  <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+                  <line x1="12" y1="20" x2="12.01" y2="20" />
+                </svg>
+              </div>
+              <div>
+                <span className="rounded bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800 uppercase tracking-wider">
+                  Classroom Proximity Verified
+                </span>
+                <h3 className="text-lg font-bold text-slate-900 mt-0.5">WiFi OTP Attendance Check-in</h3>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/60 p-3 text-xs text-sky-900 leading-relaxed">
+              <div className="flex items-center justify-between font-semibold mb-1">
+                <span>Active Course: <strong className="text-sky-950 font-bold">{activeSession ? activeSession.courseCode : "TCE 511"}</strong></span>
+                <span className="rounded-full bg-emerald-100 px-2 py-0.2 text-[10px] font-bold text-emerald-800">Range: &lt; 50 ft</span>
+              </div>
+              <p className="text-[11px] text-sky-800">
+                The classroom terminal broadcasts an open WiFi beacon: <strong>WORC-OTP-XXXXXX</strong>. Locate the 6-digit code in your phone&apos;s WiFi list or on the terminal screen.
+              </p>
+            </div>
+
+            <form onSubmit={handleOtpSubmit} className="mt-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">
+                  Matric / Admission Number:
+                </label>
+                <div className="relative mt-1">
+                  <input
+                    type="text"
+                    value={otpAdmissionNo}
+                    onChange={(e) => setOtpAdmissionNo(e.target.value)}
+                    placeholder="e.g. 2019/114820"
+                    required
+                    className="w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-mono text-slate-900 placeholder:text-slate-400 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+                  />
+                </div>
+                {/* Quick picker for absent students */}
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  <span className="text-[10px] text-slate-500">Quick select:</span>
+                  {rows.filter(r => r.status === "absent" || r.status === "pending").slice(0, 3).map(st => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setOtpAdmissionNo(st.admissionNo)}
+                      className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-mono transition"
+                    >
+                      {st.admissionNo} ({st.name.split(" ")[0]})
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700">
+                  6-Digit Classroom WiFi OTP:
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otpCode}
+                  onChange={(e) => setOtpCode(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="e.g. 482910"
+                  required
+                  className="mt-1 w-full text-center tracking-[0.3em] font-mono text-xl font-bold rounded-xl border border-slate-300 py-2.5 text-slate-900 placeholder:text-slate-300 outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/20"
+                />
+              </div>
+
+              {otpFeedback && (
+                <div
+                  className={`rounded-xl p-3 text-xs font-medium ${
+                    otpFeedback.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                      : "bg-rose-50 text-rose-800 border border-rose-200"
+                  }`}
+                >
+                  {otpFeedback.message}
+                </div>
+              )}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsOtpModalOpen(false)}
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={otpSubmitting}
+                  className="rounded-xl bg-sky-600 px-5 py-2 text-xs font-bold text-white shadow hover:bg-sky-700 disabled:opacity-50 transition"
+                >
+                  {otpSubmitting ? "Verifying..." : "Verify Proximity & Check-In"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Biometric Scan Toast notification */}
       {toast && (

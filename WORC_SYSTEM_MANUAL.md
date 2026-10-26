@@ -232,6 +232,34 @@ Provides pre-formatted `curl` commands for testing the live cloud endpoints from
 
 ---
 
+### 3.6 WiFi Proximity OTP Check-in (`/checkin` & Live Dashboard Modal)
+
+A fraud-proof, proximity-bounded wireless check-in mechanism that allows students inside the classroom (within 50 feet / 15 meters) to record attendance via the website using a rolling 60-second OTP broadcasted by the ESP32.
+
+#### A. Proximity Distance Enforcement (< 50 Feet / ~15-20 meters)
+- The ESP32 radio is configured in dual-mode (`WIFI_AP_STA`).
+- Transmission power is throttled to `WIFI_POWER_8_5dBm` (~7 mW).
+- This restricts the physical broadcast radius to approximately **50 feet (15 to 20 meters)** matching standard lecture hall walls.
+- Students outside the lecture hall or in dormitories cannot receive the beacon signal or detect the network SSID.
+
+#### B. Zero-Connect WiFi SSID Beacon (`WORC-OTP-XXXXXX`)
+- The ESP32 SoftAP broadcasts an open network SSID containing the active 6-digit OTP (e.g. `WORC-OTP-582914`).
+- **Zero-Connect Feature**: Students simply open their smartphone's WiFi menu, read the 6-digit code from the network name, and remain on their mobile data to submit attendance on the website.
+- **Captive Portal Backup**: If students connect directly to the AP, visiting `192.168.4.1` opens a local landing page displaying the live OTP, active course, and direct check-in link.
+- **Terminal LCD Synchronization**: The 16x2 LCD screen on the lecturer's desk displays the 6-digit OTP with a live second-by-second countdown.
+
+#### C. Student Verification Flow on the Website
+1. Student navigates to `/checkin` (or clicks **📶 WiFi OTP Check-in** on the live dashboard).
+2. Enters their Matriculation/Reg No (e.g., `2019/114820`).
+3. Enters the 6-digit classroom OTP seen in their WiFi scan list or terminal display.
+4. The system validates:
+   - Live session active for the course.
+   - Terminal node enabled by lecturer.
+   - 60-second window match (plus 30-second grace window).
+5. Attendance is recorded with check-in timestamp and method badge `WiFi OTP (<50ft)`.
+
+---
+
 ## 4. Hardware Subsystem: Microcontroller & Sensors
 
 ### Physical State Machine Flowchart

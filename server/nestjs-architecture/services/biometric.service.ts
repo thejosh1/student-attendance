@@ -15,7 +15,7 @@ import {
   records,
   store,
 } from "@/lib/store";
-import { EnrollStudentDto, ScanAttendanceDto } from "../dto/attendance.dto";
+import { EnrollStudentDto, OtpAttendanceDto, ScanAttendanceDto } from "../dto/attendance.dto";
 
 const MIN_GAP_MINUTES = 30;
 
@@ -239,6 +239,130 @@ export class BiometricService {
       status: 201,
       student: newStudent,
       message: `Student ${newStudent.name} (${newStudent.admissionNo}) successfully enrolled with Biometric Template Slot #${newStudent.deviceUserId}!`,
+    };
+  }
+
+  /**
+   * Process attendance via WiFi-broadcasted proximity OTP
+   */
+  async processOtpCheckin(dto: OtpAttendanceDto) {
+    if (!dto.admissionNo || !dto.otp) {
+      return { error: "Admission/Reg No and 6-digit WiFi OTP are required.", status: 400 };
+    }
+
+    const cleanAdmissionNo = dto.admissionNo.trim();
+    const cleanOtp = dto.otp.trim();
+
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      return { error: "OTP must be a 6-digit number broadcasted by the classroom terminal.", status: 400 };
+    }
+
+    const students = await getAllStudents();
+    const norm = (s: string) => (s || "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+    const student = students.find(
+      (s) => norm(s.admissionNo) === norm(cleanAdmissionNo) || s.id === cleanAdmissionNo
+    );
+
+    if (!student) {
+      return {
+        error: `Student with Reg No [${cleanAdmissionNo}] not found in enrollment records.`,
+        status: 404,
+      };
+    }
+
+    const sessions = await getAllSessions();
+    const normCourse = (c?: string) => (c || "").trim().toUpperCase();
+
+    // Find the target active session
+    let targetSession = sessions.find((s) => {
+      if (!s.isActive) return false;
+      if (dto.deviceId && s.deviceId === dto.deviceId) return true;
+      if (dto.courseCode && normCourse(s.courseCode) === normCourse(dto.courseCode)) return true;
+      return true; // Match current active session
+    });
+
+    if (!targetSession) {
+      return {
+        error: "NO ACTIVE CLASS: There is no live lecture session currently active for attendance check-in.",
+        status: 400,
+      };
+    }
+
+    // Verify Device is enabled
+    const devices = await getAllDevices();
+    const device = devices.find((d) => d.id === targetSession!.deviceId);
+    if (device && !device.isEnabled) {
+      return {
+        error: `ACCESS BLOCKED: Terminal [${device.id}] is currently DISABLED by the Lecturer.`,
+        status: 403,
+      };
+    }
+
+    // Verify OTP using 60s rolling window + grace period
+    const { verifySessionOtp } = await import("@/lib/store");
+    const isOtpValid = verifySessionOtp(targetSession.id, cleanOtp);
+
+    if (!isOtpValid) {
+      return {
+        error: "INVALID OTP: The OTP entered is invalid or has expired. Please check the WiFi network name (WORC-OTP-XXXXXX) or terminal screen in your classroom.",
+        status: 400,
+      };
+    }
+
+    const now = new Date();
+    const date = now.toLocaleDateString("en-CA");
+    const time = timeStr(now);
+    const sessionCourse = targetSession.courseCode;
+    const lateCutoff = targetSession.lateCutoff || (targetSession.startTime ? addMinutesToTime(targetSession.startTime, 15) : "08:15");
+
+    const existingIndex = store.records.findIndex(
+      (r) => r.studentId === student.id && r.date === date && (normCourse(r.courseCode) === normCourse(sessionCourse) || !r.courseCode)
+    );
+
+    if (existingIndex !== -1) {
+      const existing = store.records[existingIndex];
+      return {
+        action: "duplicate",
+        status: 200,
+        student: student.name,
+        admissionNo: student.admissionNo,
+        time: existing.checkIn,
+        message: `Student ${student.name} is already checked in for ${sessionCourse} at ${existing.checkIn}.`,
+      };
+    }
+
+    const record: AttendanceRecord = {
+      studentId: student.id,
+      date,
+      checkIn: time,
+      checkOut: null,
+      method: "wifi_otp",
+      deviceId: targetSession.deviceId,
+      courseCode: sessionCourse,
+    };
+    store.records.push(record);
+
+    const db = await import("@/lib/store").then((m) => m.getDb());
+    if (db) {
+      try {
+        await db.collection("attendance").insertOne({ ...record });
+      } catch (e) {
+        console.warn("Mongo insert attendance record error:", e);
+      }
+    }
+
+    const status = statusFor(time, lateCutoff);
+    return {
+      action: "check-in",
+      status: 200,
+      student: student.name,
+      admissionNo: student.admissionNo,
+      course: sessionCourse,
+      sessionTopic: targetSession.topic,
+      time,
+      attendanceStatus: status,
+      deviceId: targetSession.deviceId,
+      message: `Welcome ${student.name}! Checked in for ${sessionCourse} via WiFi OTP at ${time} (${status.toUpperCase()}).`,
     };
   }
 

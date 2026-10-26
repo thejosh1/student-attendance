@@ -29,6 +29,8 @@ export async function POST(req: Request) {
       courseCode: String(body.courseCode),
       topic: String(body.topic),
       lecturerName: body.lecturerName || "Lecturer in Charge",
+      lecturerEmail: body.lecturerEmail,
+      lecturerId: body.lecturerId,
       date: body.date,
       startTime,
       lateCutoff: body.lateCutoff || addMinutesToTime(startTime, 15),

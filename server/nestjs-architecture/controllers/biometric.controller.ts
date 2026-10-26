@@ -1,4 +1,4 @@
-import { CreateSessionDto, EnrollStudentDto, ScanAttendanceDto, ToggleDeviceDto } from "../dto/attendance.dto";
+import { CreateSessionDto, EnrollStudentDto, OtpAttendanceDto, ScanAttendanceDto, ToggleDeviceDto } from "../dto/attendance.dto";
 import { biometricService } from "../services/biometric.service";
 import { deviceService } from "../services/device.service";
 import { sessionService } from "../services/session.service";
@@ -9,6 +9,10 @@ import { sessionService } from "../services/session.service";
 export class BiometricController {
   async scanFingerprint(dto: ScanAttendanceDto) {
     return await biometricService.processScan(dto);
+  }
+
+  async processOtpCheckin(dto: OtpAttendanceDto) {
+    return await biometricService.processOtpCheckin(dto);
   }
 
   async enrollStudent(dto: EnrollStudentDto) {

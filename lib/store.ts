@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import {
   AttendanceRecord,
   BiometricDevice,
@@ -470,6 +471,24 @@ export async function endSession(sessionId: string): Promise<ClassSession | null
   return await toggleSessionStatus(sessionId, "end");
 }
 
+export function generateWindowOtp(sessionId: string, windowOffset: number = 0): string {
+  const windowTime = Math.floor(Date.now() / 60000) + windowOffset;
+  const hash = crypto
+    .createHmac("sha256", "futo_worc_otp_secret_key_2026")
+    .update(`${sessionId}-${windowTime}`)
+    .digest("hex");
+  const code = (parseInt(hash.substring(0, 8), 16) % 900000) + 100000;
+  return String(code);
+}
+
+export function verifySessionOtp(sessionId: string, inputOtp: string): boolean {
+  if (!sessionId || !inputOtp) return false;
+  const clean = inputOtp.trim();
+  const current = generateWindowOtp(sessionId, 0);
+  const prev = generateWindowOtp(sessionId, -1);
+  return clean === current || clean === prev;
+}
+
 export interface DeviceSessionStatus {
   deviceId: string;
   hasActiveSession: boolean;
@@ -483,6 +502,9 @@ export interface DeviceSessionStatus {
   startTime?: string;
   endTime?: string;
   sessionDate?: string;
+  otp?: string;
+  otpExpiresIn?: number;
+  broadcastSsid?: string;
 }
 
 export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSessionStatus> {
@@ -491,6 +513,8 @@ export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSe
   // 1. Is there an active session currently assigned to this device?
   const activeSession = sessions.find((s) => s.deviceId === deviceId && s.isActive);
   if (activeSession) {
+    const currentOtp = generateWindowOtp(activeSession.id, 0);
+    const otpExpiresIn = 60 - (Math.floor(Date.now() / 1000) % 60);
     return {
       deviceId,
       hasActiveSession: true,
@@ -498,7 +522,10 @@ export async function getDeviceSessionStatus(deviceId: string): Promise<DeviceSe
       topic: activeSession.topic,
       status: "active",
       displayLine1: `${activeSession.courseCode} [LIVE]`,
-      displayLine2: "Place Finger",
+      displayLine2: `OTP: ${currentOtp} (${otpExpiresIn}s)`,
+      otp: currentOtp,
+      otpExpiresIn,
+      broadcastSsid: `WORC-OTP-${currentOtp}`,
       endedAt: null,
       endedMinutesAgo: null,
       startTime: activeSession.startTime,

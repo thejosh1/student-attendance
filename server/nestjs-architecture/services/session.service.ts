@@ -21,6 +21,8 @@ export class SessionService {
       courseCode: dto.courseCode,
       topic: dto.topic,
       lecturerName: dto.lecturerName || "Lecturer in Charge",
+      lecturerEmail: dto.lecturerEmail,
+      lecturerId: dto.lecturerId,
       date: dto.date || new Date().toLocaleDateString("en-CA"),
       startTime,
       lateCutoff,

@@ -1,5 +1,5 @@
 export type Status = "present" | "late" | "pending" | "absent";
-export type Method = "fingerprint";
+export type Method = "fingerprint" | "wifi_otp";
 
 
 export interface Student {
@@ -32,6 +32,8 @@ export interface ClassSession {
   courseCode: string;
   topic: string;
   lecturerName: string;
+  lecturerEmail?: string;
+  lecturerId?: string;
   date: string;
   startTime: string;
   lateCutoff: string;

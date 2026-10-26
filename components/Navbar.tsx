@@ -31,6 +31,7 @@ export default function Navbar() {
 
   const publicLinks = [
     { href: "/", label: "Live Dashboard" },
+    { href: "/checkin", label: "WiFi OTP Check-in" },
     { href: "/enroll", label: "Student Enrollment" },
   ];
 
